@@ -12,7 +12,7 @@ Everything is written in Rust.
 |-------------|----------------------------------------------------------------------------|-----------------------------------|
 | `ctx/`      | The engine: a background server that owns every shell and records every tab, plus the `ctx` CLI that humans and agents use to list, open, run commands in, read, search, reopen and close windows and tabs. Replaces tmux, and an agent's throwaway shell. | [ctx/SPEC.md](ctx/SPEC.md)         |
 | `ctx-app/`  | `CTX.app`, the native macOS window. It holds no shells; it is a viewer and keyboard for the `ctx` server. | [ctx-app/SPEC.md](ctx-app/SPEC.md) |
-| `bro/`      | `bro`, autocomplete on steroids. `bro kill that ghostty process` → your next prompt is pre-filled with the command, ready to run. | [bro/SPEC.md](bro/SPEC.md)         |
+| `bro/`      | `bro`, autocomplete on steroids. `bro kill that ghostty process` → your next prompt is pre-filled with the command, ready to run. | [bro/SPEC.md](https://github.com/Dissipation-AI/bro/blob/main/SPEC.md)         |
 
 ```
                  ┌──────────────┐        ┌──────────────┐       ┌──────────────┐
@@ -99,6 +99,12 @@ Everything is written in Rust.
   documented `as json` / `--json` output.
 - `ctx-app` is the one exception that links a `ctx` crate (`ctx/ctx-protocol`, the server's wire
   protocol), because it's a GUI for the `ctx` server. Protocol versions are checked on connect.
+- **Public tools live in their own repos, linked here as git submodules:** `bro/`
+  ([Dissipation-AI/bro](https://github.com/Dissipation-AI/bro)) and `shared/redact/`
+  ([Dissipation-AI/redact](https://github.com/Dissipation-AI/redact)). Clone with
+  `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone.
+  A tool that depends on a shared crate pins it by git tag (bro uses
+  `redact = { git = "…/redact", tag = "v0.1.0" }`) so it also builds outside the monorepo.
 - `shared/` holds small library crates used at **compile time** by more than one tool (e.g.
   `shared/redact`, the secret-redaction rules used by `bro` and `ctx ask`). No tool depends on
   another at runtime because of them.

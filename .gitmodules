@@ -1,0 +1,6 @@
+[submodule "bro"]
+	path = bro
+	url = https://github.com/Dissipation-AI/bro.git
+[submodule "shared/redact"]
+	path = shared/redact
+	url = https://github.com/Dissipation-AI/redact.git
