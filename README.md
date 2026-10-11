@@ -41,11 +41,13 @@ Everything is written in Rust.
    several tabs side by side in one window (drag a tab to an edge), but that layout lives only in
    the GUI. The `ctx` server and CLI never know about it, and a selection or copy never crosses
    from one tab into another.
-2. **Permissions belong to the process, not the terminal.** CTX.app and the `ctx` server hold no
-   privacy grants and pass none down. Each tab is spawned so macOS treats it as its own
-   "responsible process", and the OS decides what each process may touch. This is unlike iTerm2,
-   Terminal.app and Ghostty, where every command inherits the terminal's grants (e.g. Full Disk
-   Access). Expect some first-run friction. See [ctx/SPEC.md § Permissions](ctx/SPEC.md#permissions).
+2. **Permissions belong to narrow signed launchers, never to the terminal or its shells.**
+   CTX.app and the `ctx` server hold no privacy grants, and tabs are spawned so none could leak
+   anyway. Plain shell commands fail closed on protected locations. To grant something (e.g. Full
+   Disk Access for a sys-admin agent), you grant a small purpose-built signed launcher that
+   disclaims the terminal and stays as the parent of what it runs. This is proven working today,
+   in Ghostty, by `~/Agents/sys-admin/bin/sysadmin-agent`. `ctx make launcher` builds such
+   launchers from a reviewed template, and ctx shows which tabs run under one. See [ctx/SPEC.md § Permissions](ctx/SPEC.md#permissions).
 3. **Agents can read and drive any tab by default, and everything they do is logged and visible.**
    The socket is private to your macOS user, as with tmux. Every action from a client other than
    the GUI goes into an activity log and shows a badge on the tab.
@@ -72,13 +74,20 @@ Everything is written in Rust.
 10. **Written for tokens.** Whole words, labelled numbers, no symbols or abbreviations
     (`within 10 minutes`, not `-t 10m`), bounded output by default, so language models read and
     write `ctx` reliably.
-11. **Separate tools, Unix-style.** `bro` does one thing: intent in, terminal command out.
+11. **Agents are first-class users, with evidence.** `ctx install instructions for claude|codex|gemini`
+    writes a short, generated rules block into the agent's instruction file. Replacing agents'
+    built-in shell tools (plugins, extensions, MCP) comes later, and ships per agent only after an
+    evaluation shows it doesn't cost speed, tokens or quality. Every command records who ran it
+    (you or which agent), searchable but not shown in everyday views. Structured output comes
+    `as json` or `as toon` (TOON: shorter for tabular answers; whether it helps agents is
+    measured, not assumed).
+12. **Separate tools, Unix-style.** `bro` does one thing: intent in, terminal command out.
     `ctx` uses it, when installed, to suggest a fix for a sentence it can't parse (`assist`,
     can be turned off), but never requires it. `ctx ask "…" about tab 212` (answers about a tab,
     with verified evidence lines) is a different job and uses its own, larger model configured
     in `ctx`. `bro` knows nothing about it.
-12. **zsh only for v1** (locally; over ssh, remote bash and zsh are both recorded). bash and fish come later.
-13. **Names are provisional.** `ctx`, `CTX.app` and `bro` may be renamed later. Keep names in one
+13. **zsh only for v1** (locally; over ssh, remote bash and zsh are both recorded). bash and fish come later.
+14. **Names are provisional.** `ctx`, `CTX.app` and `bro` may be renamed later. Keep names in one
    constant per project so a rename is cheap.
 
 ## Shared conventions
@@ -110,8 +119,18 @@ dev use plus one running `top`, 3 windows:
 | CTX.app        | < 80 MB    | most of this is window backing stores, unavoidable on Retina |
 | `bro`          | < 10 MB    | short-lived; 0 MB when idle                              |
 
-For comparison, Terminal.app and Ghostty were observed at 400–700 MB, sometimes several GB, for the
-same workload.
+For comparison, Terminal.app and Ghostty were observed at 400–700 MB, sometimes several GB, with 10-15 empty tabs. This is because they have seperate gpu allocations for each tab, rather than seperate ttys and one display element that is pointed a differing terminal buffers. Scrollback memory is partly unavoidable (and kept compact in ctx); per-tab GPU allocation is pure waste and avoidable.
+
+## Engineering
+
+Each project's spec has its own **Stack** and **Testing** sections. Common rules:
+
+- Rust, edition 2024, toolchain pinned per project. No async runtime, no `clap`, no GUI
+  framework beyond AppKit bindings.
+- Every dependency justified and checked (`cargo deny`, `cargo audit`); memory, startup and
+  binary-size budgets enforced in CI.
+- Unit tests beside the code, run on every commit; integration tests per project; CI on GitHub
+  Actions macOS (Apple Silicon) runners: `fmt`, `clippy -D warnings`, `test`, `deny`.
 
 ## Build order
 

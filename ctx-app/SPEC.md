@@ -102,6 +102,9 @@ buffer*, so the buffer count is the main lever.
 | Shortcut | Action |
 |---|---|
 | ⌘N | New window |
+| ⌘Q | Quit (confirms if commands are running) |
+| ⌘C / ⌘V | Copy selection / paste |
+| ⌘A | Select all in this tab |
 | ⌘T | New tab (same folder as current tab) |
 | ⌘W | Close tab |
 | ⌘⇧W | Close window |
@@ -114,6 +117,15 @@ buffer*, so the buffer count is the main lever.
 | ⌘⇧F | Find in all tabs (`ctx find`) |
 | ⌘+ / ⌘- / ⌘0 | Font size |
 | ⌘⌥← → ↑ ↓ | Move focus between side-by-side tiles |
+| ⌘⇧I | Rename tab |
+| ⌘⇧A | Activity panel |
+| ⌘, | Open the config file |
+| ⌃⌘F | Full screen |
+| ⌘M, ⌘H, ⌘` | Minimise, hide, cycle windows (standard macOS) |
+
+All shortcuts are listed in the menus (so they're discoverable) and can be rebound in config
+(`[app.keys]`). If a terminal program needs a key the app would take, ⌥-less ⌃ combinations
+always go to the program, as in Terminal.app.
 
 ## Agent visibility
 
@@ -157,6 +169,36 @@ cursor_blink = false
 
 Themes: Terminal.app's "Basic" look by default; theme files are TOML colour lists (16 ANSI +
 fg/bg/cursor/selection). Ship a few, including a Ghostty-like default.
+
+## Stack
+
+| Concern | Choice | Why |
+|---|---|---|
+| Language | Rust, edition 2024, pinned stable toolchain | |
+| macOS UI | `objc2` + `objc2-app-kit`, `objc2-foundation`, `objc2-quartz-core`, `objc2-metal`, `objc2-core-text` | native AppKit, typed bindings, no Xcode project |
+| Rendering | Metal through `objc2-metal` (one device, one atlas); Core Text CPU fallback | measured in Phase 0 |
+| Server connection | `ctx-protocol` crate (the one cross-project dependency) | protocol versions checked on connect |
+| Config | `toml` + `serde`, file watching via `FSEvents` FFI | |
+| Bundling | small `xtask` that builds the `.app`, signs (Developer ID, hardened runtime) and notarizes | reproducible in CI |
+
+No cross-platform GUI toolkit, no web view, no async runtime.
+
+## Testing
+
+**Unit tests** (`cargo test`, every commit; no window server needed):
+
+- layout: tile splitting, closing and resizing; that a selection can't cross a tile;
+- selection and copy: word/line selection, wide characters and emoji, wrapped lines joined
+  correctly, trailing spaces trimmed;
+- glyph atlas: packing, growth, LRU eviction, no duplicate rasterisation;
+- input mapping: NSEvent → key event for the server, Option-as-Meta per side, IME composition
+  states;
+- shortcut table: no two actions share a key; every action appears in a menu.
+
+**Integration tests:** launch the app against a test `ctx` server, drive it via the server
+protocol and Accessibility APIs, and compare rendered frames with reference screenshots
+(tolerant diff) for a fixed set of screens (truecolor gradient, emoji, box drawing, an Ink app,
+vim). Memory and latency budgets (see Acceptance tests) run in CI on Apple Silicon runners.
 
 ## Crate layout
 

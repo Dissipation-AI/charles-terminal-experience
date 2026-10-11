@@ -24,7 +24,7 @@ runtime to boot.
 2. **Voice-friendly:** works with dictation tools like Handy. `Bro, open a browser searching for
    salsa dancing videos.` must work despite the capital letter, comma, apostrophes and final full
    stop.
-3. **Never runs anything by itself.** It only fills in your prompt.
+3. **Never runs anything by itself.** It only fills in your command line prompt.
 4. **Works with dumb models.** Prompting and output parsing are designed for 3–8B local models.
 5. **Works anywhere, better with ctx.** `bro` is a separate tool and doesn't need `ctx`. In any
    terminal it uses shell history. If `ctx` is installed and you're in a CTX tab, it also asks
@@ -32,7 +32,7 @@ runtime to boot.
 
 ## Non-goals
 
-- Chat, multi-turn agents, or running tools in a loop. One request in, one command out.
+- Chat, multi-turn agents, or running tools in a loop. One request in, one command out. (cleaver users can use the # to leave a comment in "response" in the history, which bro picks up)
 - Its own model hosting. You bring an endpoint.
 - bash/fish (v1 is zsh only).
 
@@ -48,7 +48,7 @@ parses the line**, by a ZLE widget that wraps `accept-line`:
 2. If it doesn't match, Enter behaves normally. Zero cost.
 3. If it matches, the widget takes the rest of the line verbatim (quotes, `?`, `!` and all), adds
    it to history as typed, and runs the `bro` binary with the request on stdin. It shows
-   `bro is thinking…` under the prompt (`zle -M`), with Ctrl-C to cancel.
+   `bro is cooking…` under the prompt (`zle -M`), with Ctrl-C to cancel.
 4. The answer replaces the line (`BUFFER`), with the cursor at the end, and a one-line explanation
    is shown under the prompt. Press Enter to run, or edit it first.
 
@@ -72,7 +72,7 @@ bottom when over budget:
 | Source | In a CTX tab (`ctx` on PATH) | Elsewhere |
 |---|---|---|
 | Your request + the current line | ✓ | ✓ |
-| Last 3 commands, exit status, **and their output** (tail-trimmed to ~60 lines each) | `ctx read last 3 commands as json` | commands only, from zsh history |
+| Last 3 commands (excludes empty lines), exit status, **and their output** (tail-trimmed to ~60 lines each) | `ctx read last 3 commands as json` | commands only, from zsh history |
 | Current folder, git branch + short status, `ls` of the folder (first 50 entries) | ✓ | ✓ |
 | Your open tabs: number, name, folder, running command | `ctx list as json` | — |
 | Running processes: top 15 by CPU and by memory, plus the shell's `jobs` | ✓ | ✓ |
@@ -81,8 +81,22 @@ bottom when over budget:
 | Project index: git repos and top-level folders under `~` (depth 3) | cached | cached |
 | Past `bro` requests and the command you actually ran afterwards (last 20, most relevant first) | ✓ | ✓ |
 | Saved tabs matching the request (e.g. "how did I deploy last time"): top 3 hits from `ctx find … as json`, commands only | ✓ | — |
+| **Man pages** for commands named in the request or current line (see below) | ✓ | ✓ |
 | macOS version, CPU arch, shell, `$TERM_PROGRAM` | ✓ | ✓ |
 
+- **Man pages.** When the request or the half-typed line names a command that exists on `PATH`
+  (`bro rsync but skip node_modules`, `tar -x… finish this`), `bro` includes the relevant part of
+  its man page, so the model uses the flags *this* machine's version supports (macOS's BSD `sed`,
+  `find`, `date` differ from the GNU versions small models mostly saw in training):
+  - located with `man -w <command>`, rendered to plain text with macOS's built-in `mandoc`;
+  - trimmed to NAME, SYNOPSIS, and the option entries whose text best matches the request's words.
+    Whole man pages are far too big, especially for a 4K-context model like apfel;
+  - if installed, the command's `tldr` page is added too (short, example-driven, ideal for small
+    models);
+  - **never** by running `<command> --help`, since that would execute arbitrary programs just to
+    gather context;
+  - rendered and trimmed pages are cached in `~/Library/Caches/bro/man/`, keyed by the man file's
+    path and modification time, so it's a file read after the first time.
 - Processes are read via `libproc` directly (no spawning `ps`). Git is read with `gix` limited to
   HEAD + status, or skipped if the repo is large and it would blow the time limit.
 - **Cache** (`~/Library/Caches/bro/`): apps list and project index are refreshed in the background
@@ -109,7 +123,7 @@ bottom when over budget:
   - web search → `open "https://search.brave.com/search?q=salsa+dancing+videos"` (search engine
     and browser from config)
   - find a terminal session → `ctx show "CTX spec writing"` (from the open-tabs context)
-  - open an app or project → `open -a "…"` / `cd ~/…` / `ctx open tab at ~/… running "…"`
+  - open an app or project → `open -a "…"` / `cd ~/…` / `ctx open tab at ~/… named "…"`
   - fix the last failed command, using its error output
   - complete a half-typed command
 - When the model is unsure, it says so in `explanation` and still gives its best command. A
@@ -214,12 +228,50 @@ documented `as json` output, like any other tool. If `ctx` isn't installed, or y
 tab (`CTX_TAB` unset), those sources are simply absent. Redaction rules come from the monorepo's
 `shared/redact` library crate, compiled in, with no runtime dependency.
 
+## Stack
+
+| Concern | Choice | Why |
+|---|---|---|
+| Language | Rust, edition 2024, pinned stable toolchain | startup in milliseconds, one small binary |
+| HTTP | `ureq` with rustls, SSE parsed by hand | blocking, no async runtime, small |
+| JSON | `serde_json` | model I/O and `--json` |
+| Processes | `libproc` via small FFI | no `ps` spawn |
+| Git | `gix` with minimal features, time-limited | branch + short status without spawning `git` |
+| Man pages | `man -w` + `mandoc -T utf8` (both ship with macOS) | exact local flags, no execution of the command |
+| Redaction | `shared/redact` (compiled in) | same rules as `ctx ask` |
+| Config | `toml` + `serde` | |
+| Arg parsing | `lexopt` | `bro` has only a handful of flags; tiny |
+
+No `tokio`, no `clap`. Every dependency is justified and checked (`cargo deny`, `cargo audit`).
+Budgets enforced in CI: binary < 5 MB, startup to request-sent < 10 ms on a cached run.
+
+## Testing
+
+**Unit tests** (`cargo test`, every commit):
+
+- trigger matching: every `bro` variant (`Bro,` `bro.` `BRO:`…) and lines that must *not* match
+  (`brown`, `broadcast`);
+- each context source: output shape, time limit honoured, budget trimming order;
+- man-page extraction: picks the right options for sample requests, from fixture man pages
+  (BSD and GNU variants);
+- redaction: the shared corpus, plus bro-specific cases (history lines, env dumps);
+- danger flags: a table of commands → flagged or not;
+- lenient model-output parsing: valid JSON, JSON in prose, fenced code, bare line, garbage.
+
+**Integration tests:** a fake OpenAI-compatible server (in-process) that records the exact prompt
+and replies with canned answers. These assert the prompt contents, redaction and timing. The zsh
+widget is tested by driving a real `zsh` in a PTY (`expect`-style), including Ctrl-C cancel and
+apostrophes/`?`/`!` in requests.
+
+**Model evals:** the evaluation set below, run manually or nightly against configured endpoints
+(apfel, a small Qwen); results tracked over time, not a CI gate.
+
 ## Phases
 
 1. `bro` as a plain command: config, endpoint client, context from history/folder/env/processes.
 2. zsh widget: `bro`-prefix catching, voice-style variants, prompt fill, Ctrl-G completion.
 3. Optional `ctx` context: command outputs and open tabs, via the `ctx` CLI.
-4. Learning from what you actually ran; app and project caches.
+4. Learning from what you actually ran; app and project caches; man/tldr pages.
 5. Prompt tuning against a fixed eval set (below) on 2–3 small local models.
 
 ## Evaluation set
