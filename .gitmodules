@@ -7,3 +7,6 @@
 [submodule "ctx"]
 	path = ctx
 	url = https://github.com/Dissipation-AI/ctx.git
+[submodule "ctx-app"]
+	path = ctx-app
+	url = https://github.com/Dissipation-AI/ctx-app.git
