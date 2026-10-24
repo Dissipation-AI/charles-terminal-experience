@@ -20,6 +20,8 @@ read = [
 ]
 # Claude Code updates itself into ~/.local/share/claude (the sysadmin launcher checks the signature).
 write = ["~/.claude", "~/.claude.json", "~/.local/share/claude", "~/Library/Caches", "~/.cache"]
+# setuid tools macOS won't start inside a sandbox; these run outside it (root-owned files only).
+unsandboxed = ["/bin/ps", "/usr/bin/top"]
 
 [agents.dev]
 folders = ["~/Workspaces"]
