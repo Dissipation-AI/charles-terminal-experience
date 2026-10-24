@@ -1,0 +1,73 @@
+# Proposed [agents] for ~/.config/ctx/config.toml (2026-10-23). Append it to the config once the
+# new ctx server is running: the running server and CTX.app are protocol 4 and would refuse these
+# keys. `ctx list agents` shows what it means.
+#
+# Paths are in your home (closed to every agent, then given back by these lists). The most
+# specific entry wins whatever its kind. Outside your home everything stays readable and only
+# temporary folders are writable. ctx's own files, Apple Events and `open` are always closed.
+
+# claude, codex, agy, … started outside every agent's folders are the software developer.
+default_agent = "dev"
+
+# Every agent's sandbox: shell startup files, toolchains, and Claude Code's own state and login.
+[agent_base]
+read = [
+    "~/.zshrc", "~/.zprofile", "~/.zshenv", "~/.zlogin", "~/.bashrc", "~/.bash_profile", "~/.profile",
+    "~/.gitconfig", "~/.config/git",
+    "~/.local/bin", "~/.bun", "~/.cargo", "~/miniconda3",
+    # Claude Code's login lives in the login keychain (tested: without this, `claude` is logged out).
+    "~/Library/Keychains",
+]
+# Claude Code updates itself into ~/.local/share/claude (the sysadmin launcher checks the signature).
+write = ["~/.claude", "~/.claude.json", "~/.local/share/claude", "~/Library/Caches", "~/.cache"]
+
+[agents.dev]
+folders = ["~/Workspaces"]
+# account = "vibe-daemon"   # after the ctx helper is installed and your home is closed (README, "Agent accounts")
+write = ["~", "~/Library/Developer", "~/Library/Application Support/Claude"]
+deny = [
+    "~/Desktop", "~/Documents", "~/Downloads", "~/Context", "~/Agents", "~/autostep_work_evidence",
+    "~/Library",
+    # Private keys: git over ssh still works with keys loaded in your ssh-agent.
+    "~/.ssh",
+    # Other services' tokens. (`gh` stays: pull requests are dev work.)
+    "~/.config/gcloud", "~/.config/firebase", "~/.config/gdrive3", "~/.config/rclone", "~/.config/stripe",
+    "~/.config/wandb", "~/.config/anthropic", "~/.config/autostep", "~/.config/configstore", "~/.gnupg",
+    "~/.aws", "~/.netrc", "~/.kaggle",
+]
+# Read-only inside its writable home: what runs as you later.
+read = [
+    "~/.ssh/config", "~/.ssh/known_hosts",
+    "~/.zshrc", "~/.zprofile", "~/.zshenv", "~/.zlogin", "~/.bashrc", "~/.bash_profile", "~/.profile",
+    "~/.local/bin",
+]
+see_tabs_of = ["you"]
+
+# Sees everything; its launcher holds Full Disk Access. No sandbox: its CLAUDE.md asks before
+# every change.
+[agents.sysadmin]
+launcher = "sysadmin"
+folders = ["~/Agents/sys-admin"]
+# account = "sys-ops-monkey"
+sandbox = false
+see_tabs_of = ["*"]
+
+# Context agents: they read what you've done (transcripts, projects, browser history) and write
+# only their own folder.
+[agents.mr-econ]
+folders = ["~/Agents/mr-econ"]
+write = ["~/Agents/mr-econ"]
+read = ["~/Workspaces", "~/Library/Application Support/BraveSoftware/Brave-Browser/Default/History"]
+
+[agents.biblionaut]
+folders = ["~/Agents/biblionaut"]
+write = ["~/Agents/biblionaut"]
+read = ["~/Workspaces", "~/Library/Application Support/BraveSoftware/Brave-Browser/Default/History"]
+
+[agents.email-agent]
+folders = ["~/Agents/email-agent"]
+write = ["~/Agents/email-agent"]
+
+[agents.rusty-motivator]
+folders = ["~/Agents/rusty-motivator"]
+write = ["~/Agents/rusty-motivator"]
