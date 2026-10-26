@@ -1,0 +1,2 @@
+workdir = "dbops"
+description = "Held out (written after the skills). An interactive-only installer whose later prompts depend on what it printed earlier (a one-time confirmation code), so the answers can't all be typed ahead; a typo restarts it."

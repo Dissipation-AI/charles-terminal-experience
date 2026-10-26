@@ -1,0 +1,2 @@
+workdir = "store"
+description = "Held out (written after the skills). A second interactive-only console with a slow connect (15 s) and fresh random data per session; finding the answer takes several queries in one session, then a write in that session."
