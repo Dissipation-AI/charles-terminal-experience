@@ -1,0 +1,1 @@
+Our ops console is `./console` (interactive; connecting takes a while). There's an open alert on one of the hosts. Use the console to follow it to the root-cause host, then acknowledge the alert in the console with that root cause (the console's `help` says how). Write the root-cause host's name to `answer.txt`.

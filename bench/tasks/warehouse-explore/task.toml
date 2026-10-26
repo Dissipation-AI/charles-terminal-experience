@@ -1,0 +1,2 @@
+workdir = "analytics"
+description = "A 25 s load() whose result changes every call, then several exploratory questions about one snapshot. Loading once in a persistent REPL fits; reloading per query costs 25 s each."

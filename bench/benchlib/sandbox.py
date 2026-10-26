@@ -33,6 +33,7 @@ class RunDir:
         root = ROOT / secrets.token_hex(4)
         for d in ("home", "bin", "tmp", workname):
             (root / d).mkdir(parents=True)
+        root.with_suffix(".run").mkdir()
         return cls(root, workname)
 
     @property
@@ -50,6 +51,12 @@ class RunDir:
     @property
     def ctx_home(self) -> Path:
         return self.root / ".ctx"
+
+    @property
+    def private(self) -> Path:
+        """The harness's own files for the run (driver, transcript, plugin sources), beside the run
+        folder rather than in it, so the agent doesn't come across them while looking around."""
+        return self.root.with_suffix(".run")
 
     @property
     def profile_path(self) -> Path:
@@ -88,11 +95,16 @@ class RunDir:
             *[f"(allow file-read* (literal {q(p)}))" for p in self.readable],
             '(deny file-read* file-write* (subpath "/private/tmp"))',
             *[f"(allow file-read-metadata (literal {q(a)}))" for a in ["/private/tmp", ROOT]],
-            f"(allow file-read* file-write* (subpath {q(self.root)}))",
+            f"(allow file-read* file-write* (subpath {q(self.root)}) (subpath {q(self.private)}))",
             # No keychain: agy's keyring library runs `security`, which puts a dialog on the
             # user's screen. Denied, agy falls back to its token file at once.
             '(deny process-exec (literal "/usr/bin/security"))',
             '(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.security.agent"))',
+            # Network and automounted volumes: a search of / (`grep -r`, `find`) reaches /home and
+            # /net (autofs), and macOS then asks the user, on the run's behalf, to allow access to
+            # "files on a network volume". Denied here, the search gets an error and no dialog.
+            *[f"(deny file-read* file-write* (subpath {q(p)}))" for p in
+              ("/Volumes", "/Network", "/net", "/home", "/System/Volumes/Data/home")],
             # /tmp itself is a symlink every program resolves.
             '(allow file-read* (literal "/tmp") (literal "/private"))',
         ]
@@ -113,8 +125,11 @@ class RunDir:
 
     def kill_leftovers(self):
         """Kill every process still using the run folder (servers the agent left running, tabs)."""
-        out = subprocess.run(["lsof", "-t", "+D", str(self.root)], capture_output=True, text=True).stdout
-        pids = {int(p) for p in out.split() if p.strip().isdigit()} - {os.getpid()}
+        pids = set()
+        for d in (self.root, self.private):
+            out = subprocess.run(["lsof", "-t", "+D", str(d)], capture_output=True, text=True).stdout
+            pids |= {int(p) for p in out.split() if p.strip().isdigit()}
+        pids -= {os.getpid()}
         for pid in pids:
             try:
                 os.kill(pid, 9)
@@ -124,4 +139,5 @@ class RunDir:
 
     def remove(self):
         shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.private, ignore_errors=True)
         self.profile_path.unlink(missing_ok=True)

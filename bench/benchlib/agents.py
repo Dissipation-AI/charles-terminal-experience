@@ -34,6 +34,28 @@ def skills_referenced(text: str, skills: list[str]) -> list[str]:
     return [s for s in skills if re.search(rf"(?<![\w-]){re.escape(s)}(?![\w-])", text)]
 
 
+RESETS = re.compile(r"resets? in (?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?", re.I)
+
+
+def quota_reset_seconds(text: str) -> int | None:
+    """Seconds until a quota resets, when the error says so ("Resets in 1h17m28s")."""
+    m = RESETS.search(text or "")
+    if not m or not any(m.groups()):
+        return None
+    h, mi, se = (int(g or 0) for g in m.groups())
+    return h * 3600 + mi * 60 + se
+
+
+def _infra(markers, parsed: dict, stderr: str) -> str | None:
+    """An error that says nothing about the setup. A quota or overload error ends the run whenever
+    it hits, so it counts even after tool calls; the run is retried rather than scored as a fail."""
+    text = f"{parsed.get('agent_error') or ''} {stderr}".lower()
+    for marker in markers:
+        if marker in text:
+            return marker
+    return None
+
+
 class Agy:
     """Google Antigravity CLI (`agy`)."""
 
@@ -119,12 +141,8 @@ class Agy:
 
     def infra_error(self, parsed: dict, stderr: str) -> str | None:
         """An error that says nothing about the setup (quota, network, auth): retry later."""
-        text = f"{parsed.get('agent_error') or ''} {stderr}".lower()
-        for marker in ("429", "resource_exhausted", "quota", "rate limit", "unavailable", "503",
-                       "unauthenticated", "not logged in", "deadline exceeded", "connection reset"):
-            if marker in text and parsed.get("tool_calls_total", 0) == 0:
-                return marker
-        return None
+        return _infra(("429", "resource_exhausted", "quota", "rate limit", "unavailable", "503",
+                       "unauthenticated", "not logged in", "deadline exceeded", "connection reset"), parsed, stderr)
 
 
 class Claude:
@@ -224,12 +242,8 @@ class Claude:
         }
 
     def infra_error(self, parsed: dict, stderr: str) -> str | None:
-        text = f"{parsed.get('agent_error') or ''} {stderr}".lower()
-        for marker in ("rate limit", "overloaded", "529", "not logged in", "invalid api key", "usage limit",
-                       "connection error"):
-            if marker in text and parsed.get("tool_calls_total", 0) == 0:
-                return marker
-        return None
+        return _infra(("rate limit", "overloaded", "529", "not logged in", "invalid api key", "usage limit",
+                       "connection error"), parsed, stderr)
 
 
 class Oracle:
