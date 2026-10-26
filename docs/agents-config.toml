@@ -28,7 +28,7 @@ folders = ["~/Workspaces"]
 # account = "vibe-daemon"   # after the ctx helper is installed and your home is closed (README, "Agent accounts")
 write = ["~", "~/Library/Developer", "~/Library/Application Support/Claude"]
 deny = [
-    "~/Desktop", "~/Documents", "~/Downloads", "~/Context", "~/Agents", "~/autostep_work_evidence",
+    "~/Desktop", "~/Documents", "~/Downloads", "~/Context", "~/autostep_work_evidence",
     "~/Library",
     # Private keys: git over ssh works only once a key is in your ssh-agent (AddKeysToAgent loads it
     # on your first ssh after login, outside any sandbox); git over https uses gh's login any time.
