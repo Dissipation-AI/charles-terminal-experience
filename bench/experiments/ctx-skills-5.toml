@@ -1,0 +1,37 @@
+name = "ctx-skills-5"
+hypothesis = """
+Round 5: what makes agy load a skill (rounds 1-4 in bench/experiments/ctx-skills.md). agy's prompt says to read a skill's SKILL.md whenever it "seems relevant"; in round 4, v2/v3 loaded both skills on dev-server, whose prompt asks for a server "that keeps running after you finish" (round 3: 0/3 loads, round 4: 2/2).
+(a) v4a: descriptions say what the skill does to a program (run it in a tab and type into it) and drop "persistent", "stays open", "servers": loads on dev-server, slow-load-inspect and postmortem-debug fall, loads on the interactive tasks don't.
+(b) v4b: v4a with persistent-terminals renamed interactive-programs, since the name is shown next to the description: loads on dev-server fall further.
+"""
+reps = 3
+jobs = 4
+timeout = 900
+seed = 5
+tasks = ["dev-server", "slow-load-inspect", "postmortem-debug", "fix-failing-test",
+         "ops-console", "interactive-wizard", "tab-dev-server", "db-setup-wizard"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.skills-v3]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v3"]
+
+[setups.skills-v4a]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4a"]
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

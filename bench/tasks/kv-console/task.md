@@ -1,0 +1,1 @@
+`./kv` is the console for our key-value store (interactive; connecting takes a while). Find the VIP user with the highest balance, tag that user's key `audit` from the console, and write the key to `answer.txt`.

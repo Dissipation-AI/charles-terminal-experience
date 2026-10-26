@@ -63,3 +63,58 @@ Findings:
 - v1 is faster than v0 everywhere the skills load (H1, H2 supported), and beats ctx alone on ops-console and tab-dev-server. It still costs time on dev-server (using-ctx loads because its description named a user's dev server; 35 s vs 21 s) and on interactive-wizard (agy ran `ctx help` 4 times and answered one prompt per call, ignoring "type them all at once").
 - warehouse-explore: no skill loaded in any setup; agents dumped the snapshot to a JSON file and queried that, which is fine. Times varied 117-559 s because the random data had ties (several customers with the same most cancellations) and agents went looking for a "perfect" snapshot; round 3 makes the answers unique. The skills' advantage there is noise.
 - Harness issues found and fixed during the round: agents read the harness's files in the run folder (driver, setup log, call log), now beside it in `<id>.run/`; agents that search `/` reached autofs `/home` and made macOS show "ctx-launch would like to access files on a network volume" (now denied in the sandbox); agy's quota (~65 runs, then 429 with "Resets in 1h17m") now pauses the queue until the reset, and a 429 mid-run is an infra error, not a fail (5 runs reclassified).
+
+## Round 3, 2026-10-25, agy 1.4.7, gemini-3.8-flash-high (spec `ctx-skills-3.toml`, experiment 2026-10-25-ctx-skills-3-ab0b)
+
+v2 (`bench/variants/ctx-skills-v2`) changes two things from v1: using-ctx's description drops "a user's dev server" and says it isn't needed for ordinary commands or servers you start; persistent-terminals leads with a one-call recipe for a wizard whose answers are known (open tab, run, type every answer, wait until idle, read) and says the sentences are complete, no `ctx help` needed. Typed-ahead answers were tested first: a wizard reading with `input()` takes them in order (3/3).
+
+72 runs, 100% pass in every setup, no quota pause.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v1 vs ctx | 0.87x [0.73, 1.07] | 1.03x [0.81, 1.14] | 0.89x [0.72, 1.10] |
+| v2 vs ctx | 0.78x [0.71, 0.91] | 0.92x [0.82, 1.04] | 0.79x [0.68, 0.95] |
+| v2 vs v1 | 0.90x [0.76, 1.09] | 0.89x [0.83, 1.12] | 0.89x [0.74, 1.11] |
+
+| task | ctx | v1 | v2 | v2 loaded |
+|---|---|---|---|---|
+| ops-console | 404 s | 151 s | 132 s | persistent-terminals 3/3 (+using-ctx 1) |
+| tab-dev-server | 203 s | 160 s | 131 s | using-ctx 3/3 |
+| interactive-wizard | 53 s | 41 s | 37 s | persistent-terminals 3/3 |
+| dev-server | 24 s | 53 s | 24 s | none |
+| warehouse-explore | 145 s | 126 s | 130 s | none |
+| coding tasks (3) | 41-48 s | 37-47 s | 43-50 s | none |
+
+- Both v2 hypotheses held: using-ctx stopped loading on dev-server (v1 loaded it 2/3, up to 127 s), and the wizard went to one ctx call (7 tool calls in all, vs v1's 8-9 with per-prompt waits and four `ctx help` calls).
+- Triggering is now what was wanted: persistent-terminals only where a program needs a terminal across calls, using-ctx only where the task names a tab, nothing on coding tasks.
+- Remaining time on tab-dev-server is the model's own investigation (git log, `ctx find`, reading ctx's activity log), not ctx steps.
+- Caveat: v2's examples were the benchmark's own tasks ("Console - ops", `./configure` with billing/9040, "Dev server - shop"). Round 4 tests a v3 with generic examples, and two held-out tasks.
+
+## Round 4, 2026-10-26, agy 1.4.7, gemini-3.8-flash-high (spec `ctx-skills-4.toml`, experiment 2026-10-25-ctx-skills-4-409a)
+
+v3 is v2 with every example made generic ("Install"/`./install.sh`, "psql - orders", "Dev server - site"), so no example matches a benchmark task. Two held-out tasks were written after the skills: `db-setup-wizard` (TTY-only installer whose later prompts depend on a one-time code it prints, so answers can't all be typed ahead) and `kv-console` (another slow, per-session console). The 14 tasks include round 1's four where a terminal isn't needed or agy gets around the slow part.
+
+126 runs; 2 quota hits, retried. ctx alone 98% pass (one kv-console timeout), v2 and v3 100%.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v2 vs ctx | 0.75x [0.70, 0.88] | 0.93x [0.83, 1.07] | 0.71x [0.65, 0.82] |
+| v3 vs ctx | 0.76x [0.69, 0.87] | 0.95x [0.83, 1.04] | 0.73x [0.66, 0.83] |
+| v3 vs v2 | 1.01x [0.88, 1.13] | 1.01x [0.88, 1.12] | 1.03x [0.89, 1.14] |
+
+| task | ctx | v2 | v3 |
+|---|---|---|---|
+| kv-console (held out) | 2/3, 893 s | 167 s | 166 s |
+| db-setup-wizard (held out) | 354 s | 82 s | 116 s |
+| ops-console | 487 s | 116 s | 123 s |
+| tab-dev-server | 209 s | 149 s | 139 s |
+| pick-up-task | 57 s | 40 s | 38 s |
+| dev-server | 18 s | 23 s | 39 s |
+| postmortem-debug | 57 s | 73 s | 67 s |
+| sqlite-investigation | 336 s | 436 s | 414 s |
+| slow-load-inspect, warehouse, 4 coding tasks | within ~10% | | |
+
+- (a) held: generic examples (v3) perform the same as task-shaped ones (v2). The gain isn't copying.
+- (b) held: on both held-out tasks persistent-terminals loaded 6/6 and cut time 2-5x. ctx alone reconnects per command on kv-console and timed out once.
+- (c) mostly held: no loads on postmortem-debug, sqlite-investigation or warehouse; slow-load-inspect loaded 2/6. The slower medians on postmortem-debug and sqlite-investigation come with no skill load, so they are run-to-run noise on long open-ended tasks, not skill cost.
+- Mis-trigger left: dev-server ("start it so that it keeps running after you finish") loaded a skill in 3/6 runs, after 0/3 in round 3; each load adds 15-20 s and v3 read a reference file too. "Keeps a program open" and "persistent" in the name match a server that keeps running. Round 5 tests descriptions that say what the skill does to a program (run it in a tab and type into it) and a rename to `interactive-programs`.
