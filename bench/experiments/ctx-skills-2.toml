@@ -1,0 +1,36 @@
+name = "ctx-skills-2"
+hypothesis = """
+Round 2 of the ctx-skills plugin on agy, with tasks where a persistent session can't be bypassed (bench/experiments/ctx-skills.md has round 1 and the hypotheses).
+"""
+reps = 3
+jobs = 4
+timeout = 900
+seed = 2
+tasks = ["ops-console", "warehouse-explore", "tab-dev-server", "dev-server", "interactive-wizard",
+         "fix-failing-test", "multi-step-refactor", "debug-from-logs"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.plain]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v0]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v0"]
+
+[setups.skills-v1]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v1"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

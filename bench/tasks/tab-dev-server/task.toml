@@ -1,0 +1,3 @@
+workdir = "shop"
+description = "ctx only. A server the user started in a named ctx tab fails; its traceback is in that tab. Fix it and restart it there: read another tab, stop its program, run in it."
+needs = ["ctx"]

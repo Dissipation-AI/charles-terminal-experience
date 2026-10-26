@@ -25,8 +25,8 @@ Claude needs a long-lived token, kept out of your own login: run `claude setup-t
 
 ## What a run is
 
-1. A fresh folder `/private/tmp/ab/<id>/`: a fake `HOME` (the agent's own empty config plus a copy of its credentials), the task's working folder (named for the task's project, e.g. `shop`), `bin/` with only the tools the setup provides, and `TMPDIR`.
-2. A seatbelt profile (`results/runs/<exp>/<run>/sandbox.sb`) that denies the real home folder (no source code, notes, configs, memories), the rest of `/tmp` (other runs) and the keychain (`/usr/bin/security`; agy's keyring library otherwise pops up dialogs). Network is open.
+1. A fresh folder `/private/tmp/ab/<id>/`: a fake `HOME` (the agent's own empty config plus a copy of its credentials), the task's working folder (named for the task's project, e.g. `shop`), `bin/` with only the tools the setup provides, and `TMPDIR`. The harness's own files for the run (driver script, transcript, logs, plugin sources) go in `/private/tmp/ab/<id>.run/` beside it, so an agent looking around its folder doesn't find them. ctx binaries are copied once per build to `~/.cache/ctx-bench/<sha>/`.
+2. A seatbelt profile (`results/runs/<exp>/<run>/sandbox.sb`) that denies the real home folder (no source code, notes, configs, memories), the rest of `/tmp` (other runs), the keychain (`/usr/bin/security`; agy's keyring library otherwise pops up dialogs) and network or automounted volumes (`/Volumes`, `/home`, `/net`: an agent that searches `/` would otherwise make macOS ask you to let ctx-launch "access files on a network volume"). Network is open.
 3. One sandboxed driver script starts everything, so it all shares one sandbox: the private ctx server (`CTX_HOME` in the run folder), the setup's installers run the way a user runs them (`ctx install hooks for antigravity`, `agy plugin install <plugin>`, `ctx install hooks for claude`, `--plugin-dir`), the task's `setup.sh`, then the agent with the task prompt, under a timeout.
 4. After the agent exits, the task's `check.sh` runs (the agent's servers are still up), then every process using the run folder is killed and the folder removed (`--keep` keeps it). The transcript, the agent's final message, the ctx activity log and the final working folder are kept in `results/runs/<experiment>/<run>/`.
 
@@ -36,7 +36,7 @@ The agent never sees bench's code, the check scripts or the ctx source; it sees 
 
 - `bench`: CLI. `benchlib/`: `runner.py` (schedule, run, record), `sandbox.py` (run folder, seatbelt profile), `agents.py` (one adapter per agent), `report.py`, `schema.sql`, `db.py`.
 - `experiments/*.toml`: a spec: agents and models, setups, tasks (or `"all"`), reps, jobs, timeout, seed, hypothesis.
-- `tasks/<name>/`: `task.md` (prompt; `{{port}}` becomes a free port), `setup.sh` (builds the working folder), `check.sh` (exit 0 = pass; may print a JSON line with `score` for partial credit; gets `BENCH_PORT` and `BENCH_RESPONSE`, the agent's final message), `solve.sh` (reference solution, used by the oracle), `task.toml` (`workdir`, `description`, optional `timeout`).
+- `tasks/<name>/`: `task.md` (prompt; `{{port}}` becomes a free port), `setup.sh` (builds the working folder), `check.sh` (exit 0 = pass; may print a JSON line with `score` for partial credit; gets `BENCH_PORT` and `BENCH_RESPONSE`, the agent's final message), `solve.sh` (reference solution, used by the oracle), `task.toml` (`workdir`, `description`, optional `timeout`, optional `needs = ["ctx"]` for tasks that only make sense with ctx).
 - `results/` (git-ignored): `bench.sqlite`, `runs/`, `reports/`.
 
 ## Setups (in ctx-skills.toml)
@@ -53,7 +53,7 @@ Per run (`outcomes`): `passed`, `score`, `wall_seconds` (agent start to exit, me
 
 Per run (`env`): agent version, ctx version, binary hash, binary mtime and git state, plugin and task content hashes. Per experiment (`env`): host, OS and build, CPU, memory, Python, SQLite, harness version and git state. `vars`: agent, model, setup and its components, task, rep, the exact prompt and its hash, port, skills, concurrency, sandbox, permission mode, timeout.
 
-A run is **invalid** (excluded from the report, listed at its end) when the setup didn't take effect, e.g. a ctx setup where no shell command went through ctx. This caught a real bug while building the harness: when ctx couldn't open a tab, the hook quietly fell back to the agent's own shell. An **infra_error** (quota, auth, no result) is retried by `--resume`.
+A run is **invalid** (excluded from the report, listed at its end) when the setup didn't take effect, e.g. a ctx setup where no shell command went through ctx. This caught a real bug while building the harness: when ctx couldn't open a tab, the hook quietly fell back to the agent's own shell. An **infra_error** (quota, auth, overload, no result) says nothing about the setup, even when it hits mid-run, so it isn't scored. The run queue pauses every worker when one happens (until the quota's reset time when the agent reports it, e.g. agy's "Resets in 1h17m", else 5 minutes) and retries the cell, up to 6 times; `--resume` retries what is left. An overnight run waits out quota windows on its own.
 
 The report gives, per agent and model: pass rate, mean score, median wall time and tokens per setup; each setup against the baseline and against the previous setup as a geometric mean over tasks of the ratio of medians, with a 95% bootstrap CI that resamples runs within each task; and a per-task table. Order is shuffled with a recorded seed so time-of-day and quota effects spread across setups.
 

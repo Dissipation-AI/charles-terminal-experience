@@ -20,7 +20,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .agents import AGENTS
+from .agents import AGENTS, quota_reset_seconds
 from .db import DB, now
 from .sandbox import RunDir
 
@@ -134,15 +134,30 @@ exit $st
 CTX_MISUSE = re.compile(r"isn't a ctx verb|Did you mean|Put it in quotes|isn't a valid ctx|There's no tab named")
 
 
+CTX_BINS = Path.home() / ".cache/ctx-bench"
+
+
 def install_ctx(rd: RunDir, ctx_bin: Path):
-    real = rd.root / ".ctx-bin"
-    real.mkdir()
-    for exe in ("ctx", "ctx-launch", "ctx-helper"):
-        if (ctx_bin / exe).exists():
-            shutil.copy2(ctx_bin / exe, real / exe)
+    # One copy per build, at a path that stays the same across runs: a rebuild mid-experiment
+    # doesn't change what runs, and macOS sees one program rather than a new one each run (it
+    # asks about privacy permissions per program).
+    real = CTX_BINS / sha_file(ctx_bin / "ctx")[:16]
+    if not (real / "ctx").exists():
+        tmp = real.with_suffix(".tmp")
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True)
+        for exe in ("ctx", "ctx-launch", "ctx-helper"):
+            if (ctx_bin / exe).exists():
+                shutil.copy2(ctx_bin / exe, tmp / exe)
+        try:
+            tmp.rename(real)
+        except OSError:
+            shutil.rmtree(tmp, ignore_errors=True)  # another run got there first
+    for exe in real.iterdir():
+        rd.readable.append(exe)
     rd.ctx_home.mkdir()
     shim = rd.bin / "ctx"
-    shim.write_text(CTX_SHIM.format(real=real / "ctx", log=rd.ctx_home / "calls.log"))
+    shim.write_text(CTX_SHIM.format(real=real / "ctx", log=rd.private / "ctx-calls.log"))
     shim.chmod(0o755)
     return real / "ctx"
 
@@ -162,7 +177,7 @@ def ctx_metrics(rd: RunDir, activity_offset: int, calls_offset: int) -> dict:
         verb = words[1] if len(words) > 1 else "?"
         verbs[verb] = verbs.get(verb, 0) + 1
     calls = []
-    log_path = rd.ctx_home / "calls.log"
+    log_path = rd.private / "ctx-calls.log"
     if log_path.exists():
         calls = log_path.read_text(errors="replace").splitlines()[calls_offset:]
     failed = [c for c in calls if not c.startswith("0\t")]
@@ -256,7 +271,7 @@ class Runner:
             env = rd.env(extra)
             plugin_copies = []
             for p in plugins:
-                dest = rd.root / "plugins" / p.name
+                dest = rd.private / "plugins" / p.name
                 shutil.copytree(p, dest, symlinks=False)
                 plugin_copies.append(str(dest))
             rd.write_profile()
@@ -278,7 +293,7 @@ class Runner:
                     os.killpg(proc.pid, signal.SIGKILL)
                     proc.wait()
                     timed_out = True
-            run = rd.root / ".run"
+            run = rd.private / "run"
             for f in ("transcript.jsonl", "agent.stderr", "install.log", "setup.log", "ctx-server.log"):
                 if (run / f).exists():
                     shutil.copy2(run / f, art / f)
@@ -333,6 +348,8 @@ class Runner:
             infra = agent.infra_error(parsed, stderr_path.read_text(errors="replace")[-5000:])
             if infra and not outcomes["passed"]:
                 status, error = "infra_error", f"agent infrastructure: {infra}"
+                reset = quota_reset_seconds(stderr_path.read_text(errors="replace")[-5000:] + str(parsed.get("agent_error")))
+                outcomes["quota_reset_seconds"] = reset
             if parsed.get("agent_status") is None and not timed_out:
                 status, error = "infra_error", "agent produced no result: " + stderr_path.read_text(errors="replace")[-500:]
             snapshot(rd.work, art / "work")
@@ -340,6 +357,13 @@ class Runner:
             status, error = "harness_error", f"{e}\n{traceback.format_exc()[-2000:]}"
         finally:
             outcomes["leftover_processes"] = rd.kill_leftovers()
+            # The ctx binary lives outside the run folder, so its server isn't found by path.
+            pid_file = rd.private / "run/ctx-server.pid"
+            if pid_file.exists():
+                try:
+                    os.kill(int(pid_file.read_text()), signal.SIGKILL)
+                except (ProcessLookupError, ValueError):
+                    pass
             subprocess.run(["pkill", "-9", "-f", str(rd.root)], capture_output=True)
             kill_port(port)
             if not self.keep:
@@ -352,6 +376,7 @@ class Runner:
             f"{outcomes.get('wall_seconds', 0):.0f}s tokens={tok} "
             f"{'INVALID: ' + '; '.join(outcomes['invalid_reasons']) if outcomes['invalid_reasons'] else ''}"
             f"{(error or '').splitlines()[0][:200] if error else ''}")
+        return status, outcomes.get("quota_reset_seconds")
 
 
 DRIVER = """zmodload zsh/datetime
@@ -377,12 +402,13 @@ kill $wpid 2>/dev/null
 """
 
 CTX_START = """{ctx} server > $run/ctx-server.log 2>&1 &
+print $! > $run/ctx-server.pid
 for i in {{1..100}}; do {ctx} status > /dev/null 2>&1 && break; sleep 0.1; done
 {ctx} status > /dev/null 2>&1 || exit 91"""
 
 
 def write_driver(rd: RunDir, real_ctx, installs, setup_sh: Path, agent_argv, timeout: int) -> Path:
-    run = rd.root / ".run"
+    run = rd.private / "run"
     run.mkdir()
     shutil.copy2(setup_sh, run / "setup.sh")  # removed again before the agent starts
     q = lambda argv: " ".join(shlex.quote(str(a)) for a in argv)
@@ -392,7 +418,7 @@ def write_driver(rd: RunDir, real_ctx, installs, setup_sh: Path, agent_argv, tim
     offsets = ""
     if real_ctx:
         offsets = (f"step ctx_activity_offset $(lines {shlex.quote(str(rd.ctx_home / 'data/activity.log'))})\n"
-                   f"step ctx_calls_offset $(lines {shlex.quote(str(rd.ctx_home / 'calls.log'))})")
+                   f"step ctx_calls_offset $(lines {shlex.quote(str(rd.private / 'ctx-calls.log'))})")
     text = DRIVER.format(run=shlex.quote(str(run)), installs=inst, timeout=timeout, offsets=offsets, agent=q(agent_argv),
                          ctx_start=CTX_START.format(ctx=shlex.quote(str(real_ctx))) if real_ctx else "")
     path = run / "driver.zsh"
@@ -417,7 +443,9 @@ def kill_port(port: int):
 def snapshot(src: Path, dest: Path, limit=20 * 2**20):
     """Keep the final working folder for review, skipping anything large."""
     def ignore(d, names):
-        return [n for n in names if (Path(d) / n).is_file() and (Path(d) / n).stat().st_size > limit]
+        # Large files, and sockets or other special files a task's daemon leaves behind.
+        return [n for n in names if not (Path(d) / n).is_dir() and not (Path(d) / n).is_symlink() and (
+            not (Path(d) / n).is_file() or (Path(d) / n).stat().st_size > limit)]
     shutil.copytree(src, dest, symlinks=True, ignore=ignore, dirs_exist_ok=True)
 
 
@@ -446,6 +474,8 @@ def run_experiment(spec_path: Path, filters: dict, resume: str | None, keep: boo
         for setup in pick("setup", list(spec["setups"]))
         for task in pick("task", spec["tasks"])
         for rep in range(1, spec["reps"] + 1)
+        # A task.toml's `needs = ["ctx"]` keeps it to setups that have ctx.
+        if all(spec["setups"][setup].get(n) for n in task_info(task).get("needs", []))
     ]
     done = db.finished_cells(exp_id) if resume else set()
     todo = [c for c in cells if c not in done]
@@ -460,6 +490,45 @@ def run_experiment(spec_path: Path, filters: dict, resume: str | None, keep: boo
         db.create_experiment(exp_id, spec["name"], spec_path.relative_to(REPO) if spec_path.is_relative_to(REPO)
                              else spec_path, sha_file(spec_path), spec, spec.get("hypothesis"), host_env())
     runner = Runner(db, spec, spec_path, exp_id, keep)
-    with ThreadPoolExecutor(spec["jobs"]) as pool:
-        list(pool.map(lambda ic: runner.run_cell(ic[1], ic[0]), enumerate(todo)))
+    run_queue(runner, todo, spec["jobs"])
     return exp_id
+
+
+INFRA_RETRIES = 6       # per cell, then it stays an infra_error for --resume
+INFRA_PAUSE = 300       # seconds, when the error doesn't say when a quota resets
+
+
+def run_queue(runner, todo: list, jobs: int):
+    """Run cells `jobs` at a time. An infra error (quota, overload, auth) pauses every worker,
+    until the quota's reset time when the agent says it, then the cell goes back in the queue.
+    So an overnight run waits out a quota instead of burning through the queue."""
+    import queue
+    q = queue.Queue()
+    for i, c in enumerate(todo):
+        q.put((i, c, 0))
+    state = {"pause_until": 0.0}
+    lock = threading.Lock()
+
+    def worker():
+        while True:
+            try:
+                i, cell, tries = q.get_nowait()
+            except queue.Empty:
+                return
+            while (wait := state["pause_until"] - time.time()) > 0:
+                time.sleep(min(wait, 30))
+            status, reset = runner.run_cell(cell, i)
+            if status == "infra_error" and tries + 1 < INFRA_RETRIES:
+                with lock:
+                    until = time.time() + (reset + 60 if reset else INFRA_PAUSE)
+                    if until > state["pause_until"]:
+                        state["pause_until"] = until
+                        log(f"pausing all runs until {time.strftime('%H:%M', time.localtime(until))} "
+                            f"({'quota resets' if reset else 'infra error'}); then retrying")
+                q.put((i, cell, tries + 1))
+
+    threads = [threading.Thread(target=worker) for _ in range(jobs)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()

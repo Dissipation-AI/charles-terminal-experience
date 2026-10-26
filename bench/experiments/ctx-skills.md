@@ -30,3 +30,36 @@ Findings:
 - The tasks are at ceiling for success with this model, so they measure time and tokens only. Harder tasks (or a weaker model) are needed to see quality differences.
 
 Not run yet: Claude (needs a token, see README).
+
+## Round 2, 2026-10-25, agy 1.4.7, gemini-3.8-flash-high (spec `ctx-skills-2.toml`, experiment 2026-10-25-ctx-skills-2-1cd9)
+
+Why a round 2: in round 1 agy read each task's source and got around every "slow" or "stateful" part (patched out `time.sleep`, replayed the random seed), so no task needed a persistent terminal. Research on how agy uses skills: its system prompt lists each skill's name, path and description and says "If a skill seems relevant to your current task, you MUST read its SKILL.md"; it then reads the whole file with `read_file` (v0: two files of ~11.7 KB, usually both at once).
+
+New tasks that can't be got around: `ops-console` (an interactive-only client; a daemon gives each connection a fresh random world after a 20 s connect, so the answer chain must be followed in one session), `warehouse-explore` (`load()` takes 25 s and returns a different random snapshot each call; three questions about one snapshot), `tab-dev-server` (ctx only: the user's server fails in a named tab; fix it and restart it there). Daemon code is deleted once running. Oracle passes all 31 cells.
+
+Hypotheses for v1 (`bench/variants/ctx-skills-v1`): (H1) a short SKILL.md (~3.5 KB each, details moved to one-level references) cuts the cost of loading; (H2) telling the agent that its shell is already ctx through the hook, and that plain commands are fine, removes the ceremony (`ctx help`, list/open/wait/read per step); (H3) descriptions keyed on symptoms (needs a TTY, prompts, slow or per-session state; a tab named in the task) trigger where a persistent terminal is needed and not on ordinary work.
+
+| setup | runs | pass | median wall s | median tokens | skill loaded |
+|---|---|---|---|---|---|
+| plain | 21 | 86% | 43 | 144,900 | - |
+| ctx | 24 | 100% | 46 | 142,371 | - |
+| skills-v0 | 24 | 100% | 73 | 142,111 | 11/24 |
+| skills-v1 | 24 | 100% | 49 | 153,382 | 12/24 |
+
+Against ctx alone: v0 1.10x time [0.91, 1.42], 1.04x tokens; v1 0.85x time [0.71, 1.08], 1.05x tokens [0.89, 1.35], output+thinking 0.85x [0.66, 1.00]. v1 against v0: 0.77x time [0.62, 0.95].
+
+| task | plain | ctx | skills-v0 | skills-v1 |
+|---|---|---|---|---|
+| ops-console | 264 s | 331 s | 230 s | 127 s |
+| tab-dev-server | - | 169 s | 202 s | 127 s |
+| warehouse-explore | 350 s | 351 s | 149 s | 161 s |
+| dev-server | 0/3 pass, 19 s | 21 s | 49 s | 35 s |
+| interactive-wizard | 38 s | 33 s | 84 s | 40 s |
+| other three (coding) | 41-46 s | 39-47 s | 36-50 s | 41-49 s |
+
+Findings:
+
+- The skills are needed on `ops-console`: without them, agy with ctx reconnects for every command (a new 20 s session with a new world each time) and then tries to reverse-engineer the daemon (one run took 861 s in a pilot). With v0 or v1 it opens one tab and drives the console with `ctx type` / `wait` / `read`. Plain agy wrote its own socket bridge daemon (264 s).
+- v1 is faster than v0 everywhere the skills load (H1, H2 supported), and beats ctx alone on ops-console and tab-dev-server. It still costs time on dev-server (using-ctx loads because its description named a user's dev server; 35 s vs 21 s) and on interactive-wizard (agy ran `ctx help` 4 times and answered one prompt per call, ignoring "type them all at once").
+- warehouse-explore: no skill loaded in any setup; agents dumped the snapshot to a JSON file and queried that, which is fine. Times varied 117-559 s because the random data had ties (several customers with the same most cancellations) and agents went looking for a "perfect" snapshot; round 3 makes the answers unique. The skills' advantage there is noise.
+- Harness issues found and fixed during the round: agents read the harness's files in the run folder (driver, setup log, call log), now beside it in `<id>.run/`; agents that search `/` reached autofs `/home` and made macOS show "ctx-launch would like to access files on a network volume" (now denied in the sandbox); agy's quota (~65 runs, then 429 with "Resets in 1h17m") now pauses the queue until the reset, and a 429 mid-run is an infra error, not a fail (5 runs reclassified).

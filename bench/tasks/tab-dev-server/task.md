@@ -1,0 +1,1 @@
+My dev server for the shop is running in the ctx tab "Dev server - shop" (port {{port}}). `/api/total` has started returning 500s. Find out why, fix it, and leave the fixed server running in that tab.

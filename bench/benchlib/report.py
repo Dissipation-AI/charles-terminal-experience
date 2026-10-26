@@ -104,7 +104,8 @@ def report(db: DB, exp_id: str, baseline: str | None = None, filters: dict | Non
                   "|---|---|---|---|---|"]
         cmp_pairs = [(s, baseline) for s in setups if s != baseline]
         # Also each setup against the one before it (e.g. ctx+skills vs ctx).
-        cmp_pairs += [(setups[i], setups[i - 1]) for i in range(2, len(setups))]
+        cmp_pairs += [(setups[i], setups[i - 1]) for i in range(2, len(setups))
+                      if (setups[i], setups[i - 1]) not in cmp_pairs]
         for s, b in cmp_pairs:
             def pairs(metric):
                 d = {}
@@ -140,8 +141,14 @@ def report(db: DB, exp_id: str, baseline: str | None = None, filters: dict | Non
             lines.append(f"- `{r['id']}` {r['agent']}/{r['setup']}/{r['task']} rep {r['rep']}: "
                          + "; ".join(r["outcomes"]["invalid_reasons"]))
         lines.append("")
-    errs = db.query("SELECT id, agent, setup, task, rep, status, substr(error, 1, 160) AS e FROM runs "
-                    "WHERE experiment_id = ? AND status != 'done'", (exp_id,))
+    # Cells with no finished run; infra errors that a later attempt replaced are only counted.
+    errs = db.query("SELECT id, agent, setup, task, rep, status, substr(error, 1, 160) AS e FROM runs r "
+                    "WHERE experiment_id = ? AND status != 'done' AND NOT EXISTS (SELECT 1 FROM runs d "
+                    "WHERE d.experiment_id = r.experiment_id AND d.status = 'done' AND d.agent = r.agent "
+                    "AND d.model = r.model AND d.setup = r.setup AND d.task = r.task AND d.rep = r.rep)", (exp_id,))
+    retried = db.query("SELECT COUNT(*) n FROM runs WHERE experiment_id = ? AND status != 'done'", (exp_id,))[0]["n"] - len(errs)
+    if retried:
+        lines += [f"{retried} attempts ended in an infra error (quota, overload) and were retried.", ""]
     if errs:
         lines += ["## Runs that didn't finish", ""]
         for r in errs:

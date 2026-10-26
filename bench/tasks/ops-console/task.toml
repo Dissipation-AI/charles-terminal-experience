@@ -1,0 +1,2 @@
+workdir = "ops"
+description = "An interactive-only console with a slow connect (20 s) and fresh random state per session; following an alert takes several dependent commands in one session. Driving a program across calls in a persistent terminal fits; a new session per command doesn't."

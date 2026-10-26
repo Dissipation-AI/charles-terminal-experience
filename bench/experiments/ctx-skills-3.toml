@@ -1,0 +1,36 @@
+name = "ctx-skills-3"
+hypothesis = """
+Round 3 of the ctx-skills plugin on agy (rounds 1-2 in bench/experiments/ctx-skills.md).
+v2 against v1: (a) using-ctx's description no longer names dev servers, so it stops loading on dev-server (v1: 2/2 loads, 35 s vs 21 s with ctx alone); (b) persistent-terminals leads with a one-call recipe for a wizard whose answers are known and says `ctx help` isn't needed, so interactive-wizard drops from v1's ~40 s / 13 tool calls toward ctx alone's ~33 s; (c) no loss on ops-console and tab-dev-server, where v1 beat ctx alone (127 s vs 331 s and 169 s).
+warehouse-explore now has unique answers (round 2's ties sent agents chasing a "perfect" snapshot).
+"""
+reps = 3
+jobs = 4
+timeout = 900
+seed = 3
+tasks = ["ops-console", "warehouse-explore", "tab-dev-server", "dev-server", "interactive-wizard",
+         "fix-failing-test", "multi-step-refactor", "debug-from-logs"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v1]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v1"]
+
+[setups.skills-v2]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v2"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"
