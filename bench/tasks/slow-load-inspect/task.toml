@@ -1,0 +1,2 @@
+workdir = "pipeline"
+description = "Answer a question about data that takes ~20 s to load and whose structure must be explored. A persistent Python session loads it once."

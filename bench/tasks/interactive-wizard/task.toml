@@ -1,0 +1,2 @@
+workdir = "billing-service"
+description = "A configure wizard that only runs on a terminal (refuses piped stdin). Exercises driving an interactive program."

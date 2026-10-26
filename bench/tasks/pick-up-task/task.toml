@@ -1,0 +1,2 @@
+workdir = "migration"
+description = "Finish work another agent left half done. With ctx, its tab shows what it ran; without, only the files remain."

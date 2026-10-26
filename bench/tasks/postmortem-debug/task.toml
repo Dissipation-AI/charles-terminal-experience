@@ -1,0 +1,2 @@
+workdir = "etl"
+description = "A script crashes after ~20 s deep in a call stack; report a local variable at the crash without editing it. Post-mortem debugging in a persistent session fits."

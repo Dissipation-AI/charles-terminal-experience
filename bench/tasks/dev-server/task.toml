@@ -1,0 +1,2 @@
+workdir = "webapp"
+description = "Start a server that outlives the agent, verify it, report the response."

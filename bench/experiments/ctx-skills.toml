@@ -1,0 +1,35 @@
+name = "ctx-skills"
+hypothesis = """
+1. An agent whose shell is ctx (ctx's hook, installed the way a user installs it) is no worse on task success and no more than ~10% slower or more token-hungry than the same agent with its own shell (ctx/SPEC.md, "Evaluation").
+2. Adding the ctx-skills plugin (using-ctx, persistent-terminals) pays for its tokens: on tasks with long-lived state (slow loads, long builds, interactive programs, debuggers) it lowers wall time or raises success compared with ctx alone.
+"""
+reps = 3
+jobs = 3
+timeout = 900   # seconds per run; a task.toml can override
+seed = 1
+
+# Weekly Claude runs: bench run experiments/ctx-skills.toml --agent claude
+# agy runs (the default target): bench run experiments/ctx-skills.toml --agent agy
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+# The first setup is the baseline the report compares against; each later setup is also
+# compared with the one before it (ctx-skills vs ctx).
+[setups.plain]
+
+[setups.ctx]
+ctx = true
+
+[setups.ctx-skills]
+ctx = true
+plugins = ["ctx/integrations/ctx-skills"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

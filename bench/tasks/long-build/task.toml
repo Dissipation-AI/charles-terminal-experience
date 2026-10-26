@@ -1,0 +1,2 @@
+workdir = "firmware"
+description = "A 150 s build, then a verify step. Exercises long-running commands and waiting without polling."

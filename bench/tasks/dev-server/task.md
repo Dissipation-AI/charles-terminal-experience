@@ -1,0 +1,1 @@
+Start the web app in this folder (`PORT={{port}} python3 app.py`, it listens on port {{port}}) so that it keeps running after you finish, check that http://127.0.0.1:{{port}}/ answers, and tell me what it returns. Leave the server running.
