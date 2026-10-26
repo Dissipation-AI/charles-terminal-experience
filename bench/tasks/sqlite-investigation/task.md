@@ -1,0 +1,1 @@
+`shop.db` is our store's database. Which product category had the highest net revenue (sales minus refunds) in March 2026, and what was that net revenue in dollars? Write `<category> <amount>` to `answer.txt`, e.g. `toys 1234.56`.

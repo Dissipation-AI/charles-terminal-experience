@@ -1,0 +1,107 @@
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""bench: run agent experiments in sandboxes and record every run in results/bench.sqlite.
+
+  bench run experiments/ctx-skills.toml [--agent agy] [--model M] [--setup S] [--task T]
+            [--reps N] [--jobs N] [--resume EXPERIMENT] [--keep] [--dry-run]
+  bench report [EXPERIMENT] [--baseline SETUP] [--agent agy] [--save]
+  bench reparse EXPERIMENT      (re-read stored transcripts with the current adapters)
+  bench list
+  bench show RUN_ID
+  bench sql "SELECT ..."
+"""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from benchlib.db import DB  # noqa: E402
+from benchlib.report import report  # noqa: E402
+from benchlib.runner import RESULTS, run_experiment  # noqa: E402
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="bench", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("spec", type=Path)
+    for f in ("agent", "model", "setup", "task"):
+        r.add_argument(f"--{f}", action="append", help=f"only this {f} (repeatable)")
+    r.add_argument("--reps", type=int)
+    r.add_argument("--jobs", type=int)
+    r.add_argument("--resume", help="fill in the missing or failed runs of this experiment")
+    r.add_argument("--keep", action="store_true", help="keep each run's sandbox folder")
+    r.add_argument("--dry-run", action="store_true")
+    p = sub.add_parser("report")
+    p.add_argument("experiment", nargs="?")
+    p.add_argument("--baseline")
+    p.add_argument("--agent", action="append")
+    p.add_argument("--save", action="store_true", help="also write results/reports/<experiment>.md")
+    rp = sub.add_parser("reparse")
+    rp.add_argument("experiment")
+    sub.add_parser("list")
+    s = sub.add_parser("show")
+    s.add_argument("run_id")
+    q = sub.add_parser("sql")
+    q.add_argument("query")
+    a = ap.parse_args()
+
+    if a.cmd == "run":
+        filters = {k: getattr(a, k) for k in ("agent", "model", "setup", "task", "reps", "jobs")}
+        exp = run_experiment(a.spec.resolve(), filters, a.resume, a.keep, a.dry_run)
+        if not a.dry_run:
+            print("\n" + report(DB(RESULTS / "bench.sqlite"), exp))
+        return
+    db = DB(RESULTS / "bench.sqlite")
+    if a.cmd == "report":
+        exp = a.experiment or (db.query("SELECT id FROM experiments ORDER BY created_at DESC LIMIT 1") or [[None]])[0][0]
+        if not exp:
+            raise SystemExit("no experiments yet")
+        text = report(db, exp, a.baseline, {"agent": a.agent})
+        print(text)
+        if a.save:
+            out = RESULTS / "reports" / f"{db.experiment(exp)['id']}.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(text)
+            print(f"\nsaved {out}")
+    elif a.cmd == "reparse":
+        from benchlib.agents import AGENTS
+        exp = db.experiment(a.experiment)
+        n = 0
+        for row in db.query("SELECT id, agent, vars, outcomes, artifacts_dir FROM runs WHERE experiment_id = ?"
+                            " AND status = 'done'", (exp["id"],)):
+            t = RESULTS.parent / row["artifacts_dir"] / "transcript.jsonl"
+            if not t.exists():
+                continue
+            o = json.loads(row["outcomes"])
+            o.update({k: v for k, v in AGENTS[row["agent"]].parse(t, json.loads(row["vars"])["skills"]).items()
+                      if k != "response"})
+            db.update_run(row["id"], outcomes=o)
+            n += 1
+        print(f"re-read {n} transcripts")
+    elif a.cmd == "list":
+        for e in db.query("SELECT e.id, e.created_at, COUNT(r.id) n, SUM(r.status = 'done') done FROM experiments e "
+                          "LEFT JOIN runs r ON r.experiment_id = e.id GROUP BY e.id ORDER BY e.created_at"):
+            print(f"{e['id']}  {e['created_at'][:16]}  {e['done'] or 0}/{e['n']} runs done")
+    elif a.cmd == "show":
+        row = db.query("SELECT * FROM runs WHERE id LIKE ?", (a.run_id + "%",))
+        if not row:
+            raise SystemExit("no such run")
+        d = dict(row[0])
+        for k in ("vars", "env", "outcomes"):
+            d[k] = json.loads(d[k])
+        print(json.dumps(d, indent=2))
+    elif a.cmd == "sql":
+        rows = db.query(a.query)
+        if rows:
+            print("\t".join(rows[0].keys()))
+        for row in rows:
+            print("\t".join(str(v) for v in row))
+
+
+if __name__ == "__main__":
+    main()

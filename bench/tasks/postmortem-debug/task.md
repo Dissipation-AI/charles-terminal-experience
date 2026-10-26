@@ -1,0 +1,1 @@
+`etl.py` crashes partway through its run. Without changing etl.py, find the id of the record it was processing when it crashed and the value of the local variable `weight` in `normalise()` at that moment. Write `<record_id> <weight>` to `answer.txt`.

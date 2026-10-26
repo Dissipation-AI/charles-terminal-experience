@@ -1,0 +1,1 @@
+Run `./configure` to set up this service: name it `billing`, port 9040, TLS on, admin email ops@example.com. Use the wizard rather than writing config.json yourself. Then show me the resulting config.json.

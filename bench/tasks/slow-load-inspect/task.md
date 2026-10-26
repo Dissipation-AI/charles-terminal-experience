@@ -1,0 +1,1 @@
+`pipeline.py` has a `load()` function that takes a while to build the order data in memory. Using `load()` (don't change pipeline.py), find which region has the largest total amount across its refunded orders, and how many refunded orders that region has. Write the answer to `answer.txt` as `<region> <count>`, e.g. `north 12`.

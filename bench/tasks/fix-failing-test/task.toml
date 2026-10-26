@@ -1,0 +1,2 @@
+workdir = "shop"
+description = "Read code, run tests, fix an off-by-one, rerun."

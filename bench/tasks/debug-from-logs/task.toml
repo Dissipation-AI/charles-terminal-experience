@@ -1,0 +1,2 @@
+workdir = "nightly-job"
+description = "Find a config error in a long log and fix the config, not the script."

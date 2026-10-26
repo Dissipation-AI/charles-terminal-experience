@@ -1,0 +1,2 @@
+workdir = "shop-data"
+description = "Several exploratory queries over an unfamiliar SQLite schema to answer one question."
