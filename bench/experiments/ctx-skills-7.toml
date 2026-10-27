@@ -1,0 +1,34 @@
+name = "ctx-skills-7"
+hypothesis = """
+Round 7 (rounds 1-6 in bench/experiments/ctx-skills.md), the first on Linux (slopslinger, Debian 13, bubblewrap sandbox) and with agy 1.4.8.
+A fresh baseline, not compared across machines: v4b (the version ported to ctx/integrations/ctx-skills) against ctx alone on round 4's 14 tasks.
+Expected from round 4 (macOS, agy 1.4.7, v3 ~ v4b): ~0.75x wall time and ~0.7x output+thinking tokens against ctx, 2-5x faster on the consoles and wizards.
+"""
+reps = 3
+jobs = 4
+timeout = 900
+seed = 7
+tasks = ["ops-console", "warehouse-explore", "tab-dev-server", "dev-server", "interactive-wizard",
+         "fix-failing-test", "multi-step-refactor", "debug-from-logs",
+         "db-setup-wizard", "kv-console",
+         "slow-load-inspect", "postmortem-debug", "sqlite-investigation", "pick-up-task"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

@@ -37,7 +37,14 @@ class RunDir:
         for d in ("home", "bin", "tmp", workname):
             (root / d).mkdir(parents=True)
         root.with_suffix(".run").mkdir()
-        return cls(root, workname)
+        rd = cls(root, workname)
+        # A login shell (ctx opens tabs in the user's login shell) resets PATH from /etc/profile
+        # on Debian, where macOS's path_helper keeps it. A user's own profile puts their tools back
+        # on PATH; this one does the same for the run's bin/.
+        line = f'export PATH="{rd.bin}:$PATH"\n'
+        for f in (".profile", ".bash_profile", ".zprofile"):
+            (rd.home / f).write_text(line)
+        return rd
 
     @property
     def home(self) -> Path:
