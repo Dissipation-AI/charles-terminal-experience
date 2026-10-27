@@ -165,7 +165,7 @@ The loop continues on slopslinger (Debian 13), in `~/ctx-bench/repo`, from a Cla
 State at handoff:
 - ctx builds and runs on Linux with ctx branch `linux-build` (2 commits on top of `ctx-skills`, not pushed: ctx CI runs on push, ask first). The Seatbelt calls in `ctx-launch` and `ctx shim` are macOS only; `ctx-helper` doesn't build on Linux and the bench doesn't need it. Build: `. ~/ctx-bench/env.sh; cd ctx && cargo build --release -p ctx -p ctx-launch -p ctx-server` (needs Zig 0.16, at `$ZIG`). A smoke test (server, open tab, run, type into python, wait, read) passed.
 - The bench has a bubblewrap backend (`benchlib/sandbox.py`, `LINUX`), untested on the box. It needs `sudo apt install bubblewrap zsh lsof expect sqlite3` (the user runs it) and an agy login (`~/.gemini/antigravity-cli/antigravity-oauth-token`).
-- agy there is 1.4.8; rounds 1-6 ran 1.4.7 on macOS, so start with a fresh baseline (ctx vs current skills) rather than comparing across machines.
+- Use the newest agy: run `agy update` before each round (runs record agent_version). At handoff that is 1.4.8; rounds 1-6 ran 1.4.7 on macOS, so start with a fresh baseline (ctx vs current skills) rather than comparing across machines.
 
 Next:
 1. Oracle pass on every task (`./bench run <spec> --agent oracle`); fix what's macOS-specific (tasks use `lsof`, `expect`, `shasum`; the runner's cleanup uses `lsof +D`).
