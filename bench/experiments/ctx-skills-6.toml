@@ -1,0 +1,38 @@
+name = "ctx-skills-6"
+hypothesis = """
+Round 6 (rounds 1-5 in bench/experiments/ctx-skills.md). In round 5 the rename (v4b) stopped persistent-terminals loading on dev-server, but using-ctx still loaded after agy saw the hook note on its first command ("which ctx", then read SKILL.md).
+(a) v4c adds to using-ctx's description that the hook note is expected and a background server keeps running without the skill: loads on dev-server fall below v4b's.
+(b) using-ctx still loads on the tasks that need it (tab-dev-server, pick-up-task), and persistent-terminals/interactive-programs on db-setup-wizard.
+6 reps per cell, to measure load rates rather than single runs.
+"""
+reps = 6
+jobs = 4
+timeout = 900
+seed = 6
+tasks = ["dev-server", "tab-dev-server", "pick-up-task", "db-setup-wizard"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.skills-v3]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v3"]
+
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v4c]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4c"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

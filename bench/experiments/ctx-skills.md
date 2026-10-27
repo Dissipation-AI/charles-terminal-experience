@@ -118,3 +118,42 @@ v3 is v2 with every example made generic ("Install"/`./install.sh`, "psql - orde
 - (b) held: on both held-out tasks persistent-terminals loaded 6/6 and cut time 2-5x. ctx alone reconnects per command on kv-console and timed out once.
 - (c) mostly held: no loads on postmortem-debug, sqlite-investigation or warehouse; slow-load-inspect loaded 2/6. The slower medians on postmortem-debug and sqlite-investigation come with no skill load, so they are run-to-run noise on long open-ended tasks, not skill cost.
 - Mis-trigger left: dev-server ("start it so that it keeps running after you finish") loaded a skill in 3/6 runs, after 0/3 in round 3; each load adds 15-20 s and v3 read a reference file too. "Keeps a program open" and "persistent" in the name match a server that keeps running. Round 5 tests descriptions that say what the skill does to a program (run it in a tab and type into it) and a rename to `interactive-programs`.
+
+## Round 5, 2026-10-26, agy 1.4.7, gemini-3.8-flash-high (spec `ctx-skills-5.toml`, experiment 2026-10-26-ctx-skills-5-5773)
+
+Trigger wording only. v4a: descriptions say what the skill does to a program (run it in a tab and type into it) and drop "persistent", "stays open", "servers". v4b: v4a with persistent-terminals renamed `interactive-programs`.
+
+72 runs, all passed, no quota hit.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4a vs v3 | 0.87x [0.77, 1.03] | 0.89x [0.77, 1.14] | 0.91x [0.78, 1.04] |
+| v4b vs v3 | 0.88x [0.77, 1.03] | 0.91x [0.78, 1.19] | 0.87x [0.77, 1.05] |
+| v4b vs v4a | 1.01x [0.86, 1.17] | 1.02x [0.85, 1.25] | 0.96x [0.83, 1.18] |
+
+- Loads on the tasks that need them: 3/3 in every setup (db-setup-wizard, interactive-wizard, ops-console, tab-dev-server). None on fix-failing-test, postmortem-debug or slow-load-inspect.
+- dev-server: v3 loaded skills 2/3 (49 s), v4a 2/3 (35 s), v4b 1/3, using-ctx only (28 s). With the rename, persistent-terminals/interactive-programs never loaded there.
+- The remaining using-ctx loads come after agy's first command shows the hook note: it runs `which ctx` or `ls`, then reads using-ctx/SKILL.md. The description lists ctx-related triggers, and the hook makes ctx visible on every task. Round 6 tests saying in the description that the hook note is expected.
+- None of the overall differences are significant at n=3 per cell.
+
+## Round 6, 2026-10-26, agy 1.4.7, gemini-3.8-flash-high (spec `ctx-skills-6.toml`, experiment 2026-10-26-ctx-skills-6-1c68)
+
+Load rates at 6 reps. v4c is v4b plus a sentence in using-ctx's description: the hook note is expected, and a server started in the background keeps running without the skill.
+
+72 runs, all passed. Loads (using-ctx / terminal skill, out of 6):
+
+| task | v3 | v4b | v4c |
+|---|---|---|---|
+| dev-server | 3 / 3, 37 s | 1 / 0, 20 s | 2 / 0, 21 s |
+| tab-dev-server | 6 / 0, 134 s | 6 / 0, 126 s | 6 / 0, 133 s |
+| pick-up-task | 6 / 0, 39 s | 6 / 0, 41 s | 6 / 0, 39 s |
+| db-setup-wizard | 3 / 6, 75 s | 3 / 6, 78 s | 1 / 6, 77 s |
+
+- The rename holds at n=6: the terminal skill never loaded on dev-server under v4b or v4c (rounds 5-6 combined: 0/15, vs 5/9 for v3). dev-server time is back to ctx alone's (round 4: 18 s).
+- (a) didn't hold: v4c's sentence didn't lower using-ctx loads on dev-server (2/6 vs 1/6). It stays out.
+- (b) held: necessary loads were 6/6 in every setup.
+
+## Result
+
+v4b is ported to `ctx/integrations/ctx-skills` (ctx branch `ctx-skills`, not pushed): short SKILL.md files with details in references, one-call recipes for wizards and console rounds, generic examples, and persistent-terminals renamed `interactive-programs`. Against ctx alone on agy (round 4, v3 ≈ v4b): 0.75x wall time, 0.71x output+thinking tokens, 98% → 100% pass; 2-5x faster on consoles and wizards, including the two held-out tasks.
+Open: an occasional using-ctx load on a plain server task (1-2 in 6, ~20 s). Claude hasn't been run on v4b yet; due in the weekly Claude run.
