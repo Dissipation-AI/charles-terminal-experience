@@ -64,13 +64,22 @@ def git_state(path: Path) -> dict:
 
 def host_env() -> dict:
     sh = lambda *a: subprocess.run(a, capture_output=True, text=True).stdout.strip()
+    if LINUX:
+        osr = dict(l.split("=", 1) for l in Path("/etc/os-release").read_text().splitlines() if "=" in l)
+        cpu = next((l.split(":", 1)[1].strip() for l in Path("/proc/cpuinfo").read_text().splitlines()
+                    if l.startswith("model name")), "")
+        mem_kb = int(next(l.split()[1] for l in Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemTotal")))
+        os_name, os_build, mem = osr.get("PRETTY_NAME", "Linux").strip('"'), platform.release(), mem_kb * 1024
+    else:
+        os_name, os_build = f"macOS {platform.mac_ver()[0]}", sh("sw_vers", "-buildVersion")
+        cpu, mem = sh("sysctl", "-n", "machdep.cpu.brand_string"), int(sh("sysctl", "-n", "hw.memsize") or 0)
     return {
         "host": platform.node(),
-        "os": f"macOS {platform.mac_ver()[0]}",
-        "os_build": sh("sw_vers", "-buildVersion"),
-        "cpu": sh("sysctl", "-n", "machdep.cpu.brand_string"),
+        "os": os_name,
+        "os_build": os_build,
+        "cpu": cpu,
         "cores": os.cpu_count(),
-        "memory_gb": round(int(sh("sysctl", "-n", "hw.memsize") or 0) / 2**30),
+        "memory_gb": round(mem / 2**30),
         "python": sys.version.split()[0],
         "sqlite": __import__("sqlite3").sqlite_version,
         "harness_version": HARNESS_VERSION,
