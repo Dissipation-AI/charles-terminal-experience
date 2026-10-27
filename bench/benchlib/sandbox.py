@@ -1,10 +1,12 @@
-"""A fresh, isolated folder per run and a seatbelt profile that keeps the agent inside it.
+"""A fresh, isolated folder per run and a sandbox that keeps the agent inside it: a Seatbelt
+profile on macOS, bubblewrap on Linux.
 
 The agent sees only its run folder: a fake HOME (its own agent config and credentials copy), the
 task's working folder, a bin/ folder with the tools the setup provides, and TMPDIR. It can't read
 the real home folder (so no source code, notes, agent configs or memories), other runs, or other
 programs' files in /tmp. Network is allowed: the agent has to reach its model.
 """
+import json
 import os
 import secrets
 import shutil
@@ -12,7 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path("/private/tmp/ab")  # neutral name: the path is visible to the agent
+LINUX = os.uname().sysname == "Linux"
+ROOT = Path("/tmp/ab" if LINUX else "/private/tmp/ab")  # neutral name: the path is visible to the agent
 REAL_HOME = Path(os.path.realpath(Path.home()))
 BASE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -84,6 +87,8 @@ class RunDir:
         return env
 
     def write_profile(self) -> Path:
+        if LINUX:
+            return self._write_bwrap()
         q = lambda p: '"' + str(p).replace('"', '\\"') + '"'
         meta = sorted({a for p in self.readable if p.is_relative_to(REAL_HOME) for a in [p, *_ancestors(p)]})
         lines = [
@@ -111,7 +116,23 @@ class RunDir:
         self.profile_path.write_text("\n".join(lines) + "\n")
         return self.profile_path
 
+    def _write_bwrap(self) -> Path:
+        """bubblewrap arguments: the system read-only, and empty /home and /tmp with only the run
+        folder, the harness's files beside it and the readable paths put back. No pid namespace:
+        the task's daemons and the ctx server outlive the driver, for check.sh."""
+        args = ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev"]
+        for p in ("/home", "/tmp", "/var/tmp", "/dev/shm", "/run/user", "/mnt", "/media"):
+            if os.path.isdir(p):
+                args += ["--tmpfs", p]
+        for p in sorted(set(self.readable)):
+            args += ["--ro-bind", str(p), str(p)]
+        args += ["--bind", str(self.root), str(self.root), "--bind", str(self.private), str(self.private)]
+        self.profile_path.write_text(json.dumps(args, indent=0) + "\n")
+        return self.profile_path
+
     def cmd(self, argv: list[str]) -> list[str]:
+        if LINUX:
+            return ["bwrap", *json.loads(self.profile_path.read_text()), "--", *argv]
         return ["sandbox-exec", "-f", str(self.profile_path), *argv]
 
     def popen(self, argv, env=None, cwd=None, **kw) -> subprocess.Popen:

@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .agents import AGENTS, quota_reset_seconds
 from .db import DB, now
-from .sandbox import RunDir
+from .sandbox import LINUX, RunDir
 
 BENCH = Path(__file__).resolve().parent.parent
 REPO = BENCH.parent
@@ -143,7 +143,7 @@ def install_ctx(rd: RunDir, ctx_bin: Path):
     # asks about privacy permissions per program).
     real = CTX_BINS / sha_file(ctx_bin / "ctx")[:16]
     if not (real / "ctx").exists():
-        tmp = real.with_suffix(".tmp")
+        tmp = real.with_suffix(f".tmp{os.getpid()}-{threading.get_ident()}")  # runs fill it at once
         shutil.rmtree(tmp, ignore_errors=True)
         tmp.mkdir(parents=True)
         for exe in ("ctx", "ctx-launch", "ctx-helper"):
@@ -242,7 +242,7 @@ class Runner:
             "agent": agent_name, "model": model, "setup": setup_name, "setup_spec": setup, "task": task_name,
             "rep": rep, "timeout": timeout, "prompt": prompt,
             "prompt_sha": hashlib.sha256(prompt.encode()).hexdigest(), "port": port, "skills": skills,
-            "jobs": self.spec["jobs"], "sandbox": "seatbelt", "permission_mode": "skip-all",
+            "jobs": self.spec["jobs"], "sandbox": "bwrap" if LINUX else "seatbelt", "permission_mode": "skip-all",
         }
         env_ = {
             "agent_version": self.agent_version(agent),

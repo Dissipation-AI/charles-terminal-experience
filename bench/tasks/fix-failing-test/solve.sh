@@ -1,1 +1,1 @@
-sed -i '' 's/prices\[1:\]/prices/' shop/cart.py
+perl -pi -e 's/prices\[1:\]/prices/' shop/cart.py
