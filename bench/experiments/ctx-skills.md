@@ -157,3 +157,18 @@ Load rates at 6 reps. v4c is v4b plus a sentence in using-ctx's description: the
 
 v4b is ported to `ctx/integrations/ctx-skills` (ctx branch `ctx-skills`, not pushed): short SKILL.md files with details in references, one-call recipes for wizards and console rounds, generic examples, and persistent-terminals renamed `interactive-programs`. Against ctx alone on agy (round 4, v3 ≈ v4b): 0.75x wall time, 0.71x output+thinking tokens, 98% → 100% pass; 2-5x faster on consoles and wizards, including the two held-out tasks.
 Open: an occasional using-ctx load on a plain server task (1-2 in 6, ~20 s). Claude hasn't been run on v4b yet; due in the weekly Claude run.
+
+## Handoff to slopslinger, 2026-10-27
+
+The loop continues on slopslinger (Debian 13), in `~/ctx-bench/repo`, from a Claude session in tmux session `ctx-bench`.
+
+State at handoff:
+- ctx builds and runs on Linux with ctx branch `linux-build` (2 commits on top of `ctx-skills`, not pushed: ctx CI runs on push, ask first). The Seatbelt calls in `ctx-launch` and `ctx shim` are macOS only; `ctx-helper` doesn't build on Linux and the bench doesn't need it. Build: `. ~/ctx-bench/env.sh; cd ctx && cargo build --release -p ctx -p ctx-launch -p ctx-server` (needs Zig 0.16, at `$ZIG`). A smoke test (server, open tab, run, type into python, wait, read) passed.
+- The bench has a bubblewrap backend (`benchlib/sandbox.py`, `LINUX`), untested on the box. It needs `sudo apt install bubblewrap zsh lsof expect sqlite3` (the user runs it) and an agy login (`~/.gemini/antigravity-cli/antigravity-oauth-token`).
+- agy there is 1.4.8; rounds 1-6 ran 1.4.7 on macOS, so start with a fresh baseline (ctx vs current skills) rather than comparing across machines.
+
+Next:
+1. Oracle pass on every task (`./bench run <spec> --agent oracle`); fix what's macOS-specific (tasks use `lsof`, `expect`, `shasum`; the runner's cleanup uses `lsof +D`).
+2. Check under bwrap that ctx tabs open and the hook routes agy's commands (the invalid-run check flags a ctx setup with no `ctx run`), and that runs can't read the real home.
+3. A baseline round on Linux: ctx vs `ctx-skills-v4b` on the 14 round-4 tasks, 3 reps.
+4. Keep iterating: open item is the occasional using-ctx load on plain server tasks (rounds 5-6); also try harder held-out tasks (ssh-like, debugger). Write each round here, commit and push the monorepo (no CI). Port a winner into `ctx/integrations/ctx-skills` on `ctx-skills`, don't push ctx without asking.
