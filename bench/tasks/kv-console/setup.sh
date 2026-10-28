@@ -2,6 +2,8 @@
 # The daemon holds the store; ./kv only relays a terminal to it. Its code is deleted once it runs.
 cat > .d.py <<'PY'
 import fnmatch, json, os, random, socket, sys, threading, time
+if sys.platform == "linux":  # not dumpable: an agent of the same user can't read its memory or /proc files
+    __import__("ctypes").CDLL(None).prctl(4, 0)
 SOCK = sys.argv[1]
 tagged = set()
 names = ["ana", "bo", "cy", "dee", "eli", "fay", "gus", "hal", "ivy", "jo", "kai", "lu", "mo", "ned", "oz", "pia"]

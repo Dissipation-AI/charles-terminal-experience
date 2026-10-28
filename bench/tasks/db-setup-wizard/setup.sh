@@ -2,6 +2,8 @@
 # The daemon runs the wizard; ./setup only relays a terminal to it. Its code is deleted once it runs.
 cat > .d.py <<'PY'
 import os, random, socket, sys, threading, time
+if sys.platform == "linux":  # not dumpable: an agent of the same user can't read its memory or /proc files
+    __import__("ctypes").CDLL(None).prctl(4, 0)
 SOCK = sys.argv[1]
 done = []
 def handle(conn):

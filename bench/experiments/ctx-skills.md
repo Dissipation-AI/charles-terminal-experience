@@ -172,3 +172,34 @@ Next:
 2. Check under bwrap that ctx tabs open and the hook routes agy's commands (the invalid-run check flags a ctx setup with no `ctx run`), and that runs can't read the real home.
 3. A baseline round on Linux: ctx vs `ctx-skills-v4b` on the 14 round-4 tasks, 3 reps.
 4. Keep iterating: open item is the occasional using-ctx load on plain server tasks (rounds 5-6); also try harder held-out tasks (ssh-like, debugger). Write each round here, commit and push the monorepo (no CI). Port a winner into `ctx/integrations/ctx-skills` on `ctx-skills`, don't push ctx without asking.
+
+## Round 7, 2026-10-27, slopslinger (Debian 13, bubblewrap), agy 1.4.8, gemini-3.8-flash-high (spec `ctx-skills-7.toml`, experiment 2026-10-27-ctx-skills-7-96db), stopped at 65 of 84
+
+Linux port first: oracle 44/44 on `ctx-skills.toml` (15 tasks x plain/ctx/ctx-skills) and 28/28 on `ctx-skills-7.toml`, under bwrap. Harness fixes: host info from /etc/os-release and /proc; the fake home gets `.profile`/`.bash_profile`/`.zprofile` putting the run's `bin/` back on PATH, because ctx opens tabs in the user's login shell (bash here) and Debian's /etc/profile overwrites PATH (macOS's path_helper keeps it). Without that, `which ctx` failed in every tab and agy symlinked ctx into `.ctx/data/launchers/bin` itself (interactive-wizard 71 s / 176k, then 37 s / 93k after the fix). The sandbox hides /home and /tmp; a sandboxed process sees other processes' command lines in `ps` but not their root, cwd or environ.
+
+Then the baseline, ctx vs v4b on round 4's 14 tasks. agy's quota on this account resets after ~16 h, not ~1 h as on the Mac: it ran out at 65 runs. Stopped there because two Linux-only problems showed up that touch both setups:
+
+- **ctx: history expansion in agent tabs.** The hook types agy's commands into an interactive bash, so `!` expands. `python3 -c "...; print('All tests passed!')"` failed with "event not found" and `ctx run` waited until "didn't start within the time limit"; agy then waited 15 min on a background task that never ended (v4b/fix-failing-test 900 s; the 94 s run loaded using-ctx after the resulting "Tab 1 is running bash" message; ctx/fix-failing-test 98 s). In a repro, `echo "a!b"` silently ran a command from `~/.bash_history`. zsh reports it ("the shell didn't run it") but doesn't run it either. agy's own shell (`bash -c`) never expands, so through ctx the same command behaved differently. Fixed on ctx `linux-build` (3d02c0e, local): tabs an agent opens set `+H` (bash) / `no_bang_hist` (zsh).
+- **Tasks: agents read the daemons' memory.** `kernel.yama.ptrace_scope` is 0 here, so an agent can read `/proc/<pid>/mem` of the task daemon (same user, same sandbox; macOS forbids it). kv-console runs (ctx 2, v4b 1) scraped the daemon's heap for 3-6 minutes and found its source text. The four daemons now `prctl(PR_SET_DUMPABLE, 0)` on Linux: maps, mem, cwd and environ are denied; oracle still passes.
+
+Partial numbers (61 valid runs; ctx 94% pass, the 2 fails are ctx/kv-console and ctx/ops-console timeouts as in round 4):
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4b vs ctx | 0.81x [0.68, 0.90] | 0.86x [0.76, 0.93] | 0.72x [0.65, 0.79] |
+
+| task | ctx | v4b |
+|---|---|---|
+| db-setup-wizard | 431 s (1 run) | 77 s |
+| ops-console | 1/2, 650 s | 190 s |
+| kv-console | 1/2, 687 s | 339 s (memory scraping) |
+| interactive-wizard | 44 s | 32 s |
+| pick-up-task | 55 s | 40 s |
+| tab-dev-server | 207 s | 168 s |
+| dev-server | 36 s | 20 s (no skill load) |
+| fix-failing-test | 82 s | 497 s (`!` bug, 900 s run) |
+| other 6 | within noise | |
+
+- Even with both problems, v4b's gain over ctx alone carries over to Linux and agy 1.4.8: 0.81x time, 0.72x output+thinking (round 4 on macOS: 0.76x, 0.73x).
+- Loads as on macOS: interactive-programs on every wizard/console run, using-ctx on tab-dev-server and pick-up-task, none on dev-server (1 run) or the coding tasks except the one forced by the `!` bug.
+- Remaining waste with v4b on consoles: starting a console whose prompt isn't known yet (kv-console: three bare `ctx read` polls and an agy timer while it connects), `ctx help wait` / `ctx help read` despite "the sentences are complete" (kv-console 2/2 runs), and a shell `for` loop of `ctx type` calls that agy moved to the background.

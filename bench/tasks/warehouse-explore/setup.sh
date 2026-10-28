@@ -3,6 +3,8 @@
 # snapshot, so the answers can't be computed from a seed or merged across loads.
 cat > .whd.py <<'PY'
 import json, os, random, socket, sys, threading, time
+if sys.platform == "linux":  # not dumpable: an agent of the same user can't read its memory or /proc files
+    __import__("ctypes").CDLL(None).prctl(4, 0)
 SOCK = sys.argv[1]
 snaps = {}
 def make():
