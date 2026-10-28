@@ -4,6 +4,8 @@
 # the chain can't be worked out offline or carried across sessions.
 cat > .opsd.py <<'PY'
 import os, random, socket, sys, threading, time
+if sys.platform == "linux":  # not dumpable: an agent of the same user can't read its memory or /proc files
+    __import__("ctypes").CDLL(None).prctl(4, 0)
 SOCK = sys.argv[1]
 CONNECT_SECONDS = 20
 acked = set()
