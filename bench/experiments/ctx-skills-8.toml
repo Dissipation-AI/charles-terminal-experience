@@ -1,0 +1,39 @@
+name = "ctx-skills-8"
+hypothesis = """
+Round 8 (rounds 1-7 in bench/experiments/ctx-skills.md), Linux, with ctx 3d02c0e (agent tabs: no history expansion) and task daemons that agents can't read.
+(a) With the fix, no run loses time to `!` in a command (round 7: fix-failing-test 900 s); v4b and ctx are back to ~equal on fix-failing-test.
+(b) v5 = v4b + interactive-programs guidance on starting a program whose prompt isn't known yet (quiet for 5 s, read, then wait for the prompt), the read/wait phrases inline (no `ctx help`), and one multi-line `type` instead of a shell loop of `ctx type`. On the consoles (kv-console, ops-console, held-out mq-console) v5 has fewer tool calls than v4b, no `ctx help` and no bare `ctx read` polls after starting the console.
+(c) mq-console (held out, written after v5, prompt `(mq) ` that v5's "most end in `> `, `# ` or `: `" doesn't cover): v4b and v5 both load interactive-programs and beat ctx alone.
+(d) No new loads on dev-server or fix-failing-test.
+2 reps to fit one quota window (~65 runs per ~16 h on this account).
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 8
+tasks = ["kv-console", "ops-console", "mq-console", "db-setup-wizard", "interactive-wizard",
+         "tab-dev-server", "pick-up-task", "dev-server", "fix-failing-test"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v5]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v5"]
+
+[ctx]
+bin = "ctx/target-next/release"
+repo = "ctx"

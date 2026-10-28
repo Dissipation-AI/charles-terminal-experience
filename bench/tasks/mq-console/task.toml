@@ -1,0 +1,2 @@
+workdir = "broker"
+description = "Held out (written after v5). An interactive-only console with a slow, silent connect (12 s), a Python cmd-style prompt `(mq) ` and fresh random data per session; dead-letter counts and the replay token only come from per-queue commands in the same session."
