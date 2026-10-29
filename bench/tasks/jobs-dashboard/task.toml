@@ -1,0 +1,2 @@
+workdir = "batch"
+description = "Held out (written after v6). A full-screen curses dashboard (8 s connect, fresh random jobs per session, 12 rows a page over 3 pages): finding the job takes reading screens and moving a selection with keys, then restarting it with r and a y/N confirmation."

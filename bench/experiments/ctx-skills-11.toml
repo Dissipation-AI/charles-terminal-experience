@@ -1,0 +1,37 @@
+name = "ctx-skills-11"
+hypothesis = """
+Round 11 (rounds 1-10 in bench/experiments/ctx-skills.md), Linux, agy 1.4.9 (pinned copy), ctx ac3c0b9 (agent tabs: no history expansion; `ctx run` refuses an incomplete command). Round 9's tasks with fix-failing-test replaced by a new held-out task.
+(a) jobs-dashboard (held out, written after v6): a full-screen curses dashboard, read with `ctx read` and driven with `ctx press`. Both skill versions load interactive-programs and beat ctx alone, which has to find out by itself that a full-screen program can be read with `ctx read` (or fight curses output through a pty).
+(b) v6 vs v4b: <= 1.0x wall time on this set (round 9: 0.90x [0.85, 0.96]; round 10 on 15 tasks: 0.94x [0.84, 1.09]).
+(c) No run hangs on an incomplete command (rounds 7-10: 2 runs).
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 11
+tasks = ["kv-console", "ops-console", "mq-console", "db-setup-wizard", "interactive-wizard",
+         "tab-dev-server", "pick-up-task", "dev-server", "jobs-dashboard"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v6]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v6"]
+
+[ctx]
+bin = "ctx/target-next/release"
+repo = "ctx"

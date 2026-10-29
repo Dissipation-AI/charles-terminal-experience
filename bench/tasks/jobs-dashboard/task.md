@@ -1,0 +1,1 @@
+`./jobs` is the full-screen dashboard for our batch scheduler (it takes a few seconds to connect). Find the failed job with the longest runtime in the `nightly` queue, restart it from the dashboard, and write its job id to `answer.txt`.
