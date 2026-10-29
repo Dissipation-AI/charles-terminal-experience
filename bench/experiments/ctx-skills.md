@@ -234,3 +234,31 @@ ctx 3d02c0e (agent tabs: no history expansion), task daemons not dumpable. v5 = 
 - (d) didn't hold for v5: using-ctx loaded on dev-server 2/2 (v4b 0/2), though v5 didn't change using-ctx. The 168 s run is the model investigating its environment: `ps aux`, then the harness's files beside the run folder (driver.zsh, ctx-calls.log, the hook config), then the skill files and `ctx help` 4 times. The load followed the investigation, so at n=2 this is noise from agent suspicion, not the skill text.
 - Larger gap to ctx than round 7 (0.54x vs 0.81x) because this task set is mostly the tasks where skills matter, not because the skills improved.
 - Not adopted: v5's console changes help where a prompt is unknown (mq-console) but cost a little elsewhere. Next is cutting the environment snooping that adds noise to every setup: `ps aux` in the sandbox shows the harness (`bench run experiments/...` in tmux, the driver's path), which invites investigation.
+
+## Round 9, 2026-10-28, slopslinger, agy 1.4.9, gemini-3.8-flash-high (spec `ctx-skills-9.toml`, experiment 2026-10-28-ctx-skills-9-c5bb)
+
+Harness: each run gets its own pid namespace (bwrap `--unshare-pid`), bwrap's arguments go through a file descriptor, and the driver is read from stdin, so `ps` in a run lists only the run's processes and no command line names the harness. The driver stays up after the agent until the harness has run check.sh (the namespace ends with it); tab-dev-server's check compares namespace pids. v6 = v4b plus only v5's paragraph on starting a program whose prompt isn't known yet (wait until quiet for 5 s, read, then wait for the prompt); no inline grammar, no loop sentence.
+
+54 runs. Three hit agy's API with `INVALID_ARGUMENT (code 400)` within one minute, in three setups, one after 6 s with no tokens; reclassified as infra errors and retried (the marker is now an infra error). All 54 pass after retries.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4b vs ctx | 0.61x [0.57, 0.66] | 0.96x [0.88, 1.03] | 0.58x [0.53, 0.64] |
+| v6 vs ctx | 0.55x [0.52, 0.60] | 0.92x [0.88, 0.97] | 0.52x [0.48, 0.57] |
+| v6 vs v4b | 0.90x [0.85, 0.96] | 0.97x [0.91, 1.04] | 0.90x [0.84, 0.97] |
+
+| task | ctx | v4b | v6 |
+|---|---|---|---|
+| mq-console (held out) | 523 s | 149 s | 112 s |
+| kv-console | 587 s | 164 s | 151 s |
+| ops-console | 513 s | 155 s | 141 s |
+| db-setup-wizard | 291 s | 86 s | 83 s |
+| dev-server | 23 s | 49 s (using-ctx 1/2) | 22 s (0/2) |
+| tab-dev-server | 155 s | 168 s | 166 s |
+| pick-up-task | 54 s | 40 s | 52 s |
+| interactive-wizard, fix-failing-test | 29-46 s, equal | | |
+
+- (b) held: v6 is faster than v4b on all three consoles and on the whole set (0.90x, CI below 1), without v5's costs. The paragraph does what it says: no bare `ctx read` polls after starting a console (v4b: 2 in one kv-console run), and on mq-console (`(mq) ` prompt, not in the hint) v6 waited for quiet, read the screen and went on. v6 is the new best variant.
+- (c) held for v6 (using-ctx 0/2 on dev-server), not for v4b (1/2, 56 s). Rounds 5-9 together: the occasional using-ctx load on dev-server remains at about 1 in 4-6 runs for any variant, and costs 20-30 s when it happens.
+- (a) partly: runs that ran `ps` stayed common (26/54 vs 29/54), but runs that read the harness's files went from 9/54 to 5/54, all ctx-alone runs on long console tasks. They didn't find them through `ps` anymore: `ls /tmp/ab` showed `<id>.run` beside the run folder, and the `bin/ctx` shim named its log there. Since then the harness's files appear inside the sandbox at `/var/tmp/.r`, not beside the run folder (oracle 9/9; an agy cell installs the plugin from there).
+- The gap to ctx alone is mostly the consoles, where ctx alone reconnects for every command (13-18 agy background tasks per run).

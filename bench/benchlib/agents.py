@@ -141,7 +141,7 @@ class Agy:
 
     def infra_error(self, parsed: dict, stderr: str) -> str | None:
         """An error that says nothing about the setup (quota, network, auth): retry later."""
-        return _infra(("429", "resource_exhausted", "quota", "rate limit", "unavailable", "503",
+        return _infra(("429", "resource_exhausted", "invalid_argument (code 400)", "quota", "rate limit", "unavailable", "503",
                        "unauthenticated", "not logged in", "deadline exceeded", "connection reset"), parsed, stderr)
 
 

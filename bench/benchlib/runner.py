@@ -166,7 +166,7 @@ def install_ctx(rd: RunDir, ctx_bin: Path):
         rd.readable.append(exe)
     rd.ctx_home.mkdir()
     shim = rd.bin / "ctx"
-    shim.write_text(CTX_SHIM.format(real=real / "ctx", log=rd.private / "ctx-calls.log"))
+    shim.write_text(CTX_SHIM.format(real=real / "ctx", log=rd.inner(rd.private / "ctx-calls.log")))
     shim.chmod(0o755)
     return real / "ctx"
 
@@ -282,7 +282,7 @@ class Runner:
             for p in plugins:
                 dest = rd.private / "plugins" / p.name
                 shutil.copytree(p, dest, symlinks=False)
-                plugin_copies.append(str(dest))
+                plugin_copies.append(str(rd.inner(dest)))
             rd.write_profile()
             (art / "sandbox.sb").write_text(rd.profile_path.read_text())
 
@@ -446,8 +446,8 @@ def write_driver(rd: RunDir, real_ctx, installs, setup_sh: Path, agent_argv, tim
     offsets = ""
     if real_ctx:
         offsets = (f"step ctx_activity_offset $(lines {shlex.quote(str(rd.ctx_home / 'data/activity.log'))})\n"
-                   f"step ctx_calls_offset $(lines {shlex.quote(str(rd.private / 'ctx-calls.log'))})")
-    text = DRIVER.format(run=shlex.quote(str(run)), installs=inst, timeout=timeout, offsets=offsets, agent=q(agent_argv),
+                   f"step ctx_calls_offset $(lines {shlex.quote(str(rd.inner(rd.private / 'ctx-calls.log')))})")
+    text = DRIVER.format(run=shlex.quote(str(rd.inner(run))), installs=inst, timeout=timeout, offsets=offsets, agent=q(agent_argv),
                          ctx_start=CTX_START.format(ctx=shlex.quote(str(real_ctx))) if real_ctx else "")
     path = run / "driver.zsh"
     path.write_text(text)

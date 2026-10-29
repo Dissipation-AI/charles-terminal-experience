@@ -17,6 +17,9 @@ from pathlib import Path
 LINUX = os.uname().sysname == "Linux"
 ROOT = Path("/tmp/ab" if LINUX else "/private/tmp/ab")  # neutral name: the path is visible to the agent
 REAL_HOME = Path(os.path.realpath(Path.home()))
+# Where the harness's files for the run appear inside the Linux sandbox: not beside the run folder,
+# where `ls /tmp/ab` showed them to agents and they went reading the driver and logs.
+INNER_PRIVATE = Path("/var/tmp/.r")
 BASE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 
@@ -67,6 +70,12 @@ class RunDir:
         """The harness's own files for the run (driver, transcript, plugin sources), beside the run
         folder rather than in it, so the agent doesn't come across them while looking around."""
         return self.root.with_suffix(".run")
+
+    def inner(self, path: Path) -> Path:
+        """`path` (under the harness's files) as the sandbox sees it."""
+        if LINUX and Path(path).is_relative_to(self.private):
+            return INNER_PRIVATE / Path(path).relative_to(self.private)
+        return Path(path)
 
     @property
     def profile_path(self) -> Path:
@@ -135,7 +144,7 @@ class RunDir:
                 args += ["--tmpfs", p]
         for p in sorted(set(self.readable)):
             args += ["--ro-bind", str(p), str(p)]
-        args += ["--bind", str(self.root), str(self.root), "--bind", str(self.private), str(self.private)]
+        args += ["--bind", str(self.root), str(self.root), "--bind", str(self.private), str(INNER_PRIVATE)]
         self.profile_path.write_text(json.dumps(args, indent=0) + "\n")
         return self.profile_path
 
