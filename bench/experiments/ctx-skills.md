@@ -264,3 +264,27 @@ Harness: each run gets its own pid namespace (bwrap `--unshare-pid`), bwrap's ar
 - The gap to ctx alone is mostly the consoles, where ctx alone reconnects for every command (13-18 agy background tasks per run).
 
 Note, 2026-10-29: `~/.local/bin/agy` updated itself to 1.4.10 at 01:14 despite `AGY_CLI_DISABLE_AUTO_UPDATE` in our environment. Another project's Claude session on this machine (`~/oracle`) runs agy with the real home, and its agy did the update. All of round 9 ran 1.4.9 (checked per run); round 10's first attempt (2026-10-29-ctx-skills-10-3c84, 5 runs on 1.4.10) was stopped and discarded. The bench now runs its own pinned copy, `BENCH_AGY=~/ctx-bench/agy/1.4.9/agy` (set in `~/ctx-bench/env.sh`; downloaded by its release URL and checked against the manifest's sha512). That project probably shares the agy account's quota too.
+
+## Round 10, 2026-10-29, slopslinger, agy 1.4.9 (pinned copy), gemini-3.8-flash-high (spec `ctx-skills-10.toml`, experiment 2026-10-29-ctx-skills-10-1260)
+
+Confirmation of v6 against v4b on round 4's 14 tasks plus mq-console, 2 reps, no ctx-alone setup. 60 runs, all pass; 5 runs hit agy's `INVALID_ARGUMENT (code 400)` and were retried automatically (the new infra marker).
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v6 vs v4b | 0.94x [0.84, 1.09] | 1.09x [0.96, 1.19] | 1.06x [0.95, 1.15] |
+
+| task | v4b | v6 |
+|---|---|---|
+| mq-console | 159 s | 240 s (123, 355) |
+| kv-console | 212 s | 196 s |
+| ops-console | 148 s | 158 s |
+| db-setup-wizard | 140 s | 104 s |
+| dev-server | 36 s | 70 s (46; 92 with using-ctx) |
+| slow-load-inspect | 511 s (one run 900+) | 76 s |
+| other 9 | within ~15% | |
+
+- (a) didn't hold cleanly: 0.94x, CI includes 1. Over rounds 9 and 10, v6 is no worse than v4b and better on kv-console and db-setup-wizard both times; mq-console and ops-console went one way in round 9 and the other in round 10. The v6 mq-console run at 355 s lost its time to a ctx problem, not the skill (below). The port (ctx-skills 219c16d) stays: the paragraph removed the bare-read polls in both rounds (v4b kv-console 1-2 per run in rounds 8-10, v6 0), and it's 340 bytes.
+- (b) held: on the seven tasks that need no terminal, loads and times are the same for v4b and v6 (interactive-programs never loaded there).
+- (c) held: no run read the harness's files (0/60, from 9/54 in round 8 and 5/54 in round 9).
+- using-ctx on dev-server: v6 1/2 (92 s). Rounds 5-10 combined, for every variant: about 1 in 4.
+- **ctx: an incomplete command hangs the tab.** The 355 s run typed `ctx read last 30 lines in "MQAdmin` (no closing quote) through the hook. In an interactive shell that leaves bash (`>`) or zsh (`dquote>`) at its continuation prompt: the command never starts, the hook's call waits until its limit (agy put it in the background and polled it for minutes), and the next command typed there lands inside the open quote. agy's own `bash -c` fails at once. Rounds 7-10 had 2 such runs (counted from ctx's activity log, which keeps the full command; agy's transcript truncates long ones). Fixed on ctx `linux-build` (ac3c0b9, local): `ctx run` first checks the command with the tab's shell (`-n`) and, if it is incomplete, runs nothing and says so with the shell's message. bash: unclosed quotes, unfinished `if`/`for`/braces and here-documents; zsh: unclosed quotes only (zsh doesn't tell an unfinished `if` from other parse errors).
