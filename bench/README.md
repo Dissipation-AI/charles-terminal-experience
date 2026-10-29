@@ -21,7 +21,7 @@ bench/bench sql "SELECT setup, task, passed, wall_seconds, total_tokens FROM run
 
 `bench` is a uv script (stdlib only). ctx setups need a release build of ctx (`cargo build --release` in `ctx/`); the run records the binary's hash and the ctx commit.
 
-Claude needs a long-lived token, kept out of your own login: run `claude setup-token` and save the token in `~/.config/ctx-bench/claude-oauth-token` (chmod 600). agy uses a copy of `~/.gemini/antigravity-cli/antigravity-oauth-token`; nothing to set up while you're logged in to agy.
+Claude needs a long-lived token, kept out of your own login: run `claude setup-token` and save the token in `~/.config/ctx-bench/claude-oauth-token` (chmod 600). agy uses a copy of `~/.gemini/antigravity-cli/antigravity-oauth-token`; nothing to set up while you're logged in to agy. Set `BENCH_AGY` to a pinned agy binary: the one on PATH updates itself, also when other programs run it.
 
 ## What a run is
 

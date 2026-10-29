@@ -60,7 +60,9 @@ class Agy:
     """Google Antigravity CLI (`agy`)."""
 
     name = "agy"
-    exe = shutil.which("agy") or str(Path.home() / ".local/bin/agy")
+    # A pinned copy (BENCH_AGY), not the one on PATH: other programs on the machine run that one
+    # with the real home, and it updates itself.
+    exe = os.environ.get("BENCH_AGY") or shutil.which("agy") or str(Path.home() / ".local/bin/agy")
     token = Path.home() / ".gemini/antigravity-cli/antigravity-oauth-token"
     ctx_agent = "antigravity"  # the name ctx's installer and hook use
 
