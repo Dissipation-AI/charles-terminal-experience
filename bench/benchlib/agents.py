@@ -72,7 +72,7 @@ class Agy:
         cli = rd.home / ".gemini/antigravity-cli"
         cli.mkdir(parents=True)
         shutil.copy2(self.token, cli / self.token.name)
-        return {}
+        return {"AGY_CLI_DISABLE_AUTO_UPDATE": "1"}  # the version is pinned by hand; runs record it
 
     def install_commands(self, rd: RunDir, setup: dict) -> list[list[str]]:
         cmds = []

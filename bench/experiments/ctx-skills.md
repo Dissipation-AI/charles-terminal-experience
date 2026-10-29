@@ -203,3 +203,34 @@ Partial numbers (61 valid runs; ctx 94% pass, the 2 fails are ctx/kv-console and
 - Even with both problems, v4b's gain over ctx alone carries over to Linux and agy 1.4.8: 0.81x time, 0.72x output+thinking (round 4 on macOS: 0.76x, 0.73x).
 - Loads as on macOS: interactive-programs on every wizard/console run, using-ctx on tab-dev-server and pick-up-task, none on dev-server (1 run) or the coding tasks except the one forced by the `!` bug.
 - Remaining waste with v4b on consoles: starting a console whose prompt isn't known yet (kv-console: three bare `ctx read` polls and an agy timer while it connects), `ctx help wait` / `ctx help read` despite "the sentences are complete" (kv-console 2/2 runs), and a shell `for` loop of `ctx type` calls that agy moved to the background.
+
+## Round 8, 2026-10-28, slopslinger, **agy 1.4.9** (not 1.4.8), gemini-3.8-flash-high (spec `ctx-skills-8.toml`, experiment 2026-10-28-ctx-skills-8-51b3)
+
+Version note: `agy update` before this round installed 1.4.9. The decision since then is to keep agy at 1.4.8 and not update before rounds. 1.4.8 couldn't be reinstalled here: the release URL has a build id (`antigravity-cli/1.4.9-4962164969177088/linux-x64/...`), the manifest only gives the latest, and the bucket can't be listed. If the Mac's update log has the 1.4.8 build id, the linux-x64 path with that id is worth trying. agy also updates itself in the background; `AGY_CLI_DISABLE_AUTO_UPDATE=1` is now set in `~/ctx-bench/env.sh` and in every run's environment. Versions 1.4.7 (Mac, rounds 1-6), 1.4.8 (round 7) and 1.4.9 (round 8) are treated as minor changes, so rounds compare across them, with the version noted.
+
+ctx 3d02c0e (agent tabs: no history expansion), task daemons not dumpable. v5 = v4b plus three changes to interactive-programs (+750 bytes): how to start a program whose prompt you don't know yet (wait until quiet for 5 s, read, then wait for the prompt, "most end in `> `, `# ` or `: `"), the read/wait phrases inline, and "one multi-line `type`, never a shell loop of `ctx type`". New held-out task `mq-console`, written after v5: interactive-only, a silent 12 s connect, a `(mq) ` prompt that v5's hint doesn't cover, and per-queue dead-letter counts and replay tokens only in the session. 9 tasks x 3 setups x 2 reps, 54 runs; 4 quota hits retried. ctx alone 94% (one kv-console timeout), v4b and v5 100%.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4b vs ctx | 0.54x [0.46, 0.62] | 0.86x [0.79, 0.95] | 0.58x [0.49, 0.71] |
+| v5 vs ctx | 0.62x [0.52, 0.72] | 0.96x [0.87, 1.06] | 0.67x [0.58, 0.83] |
+| v5 vs v4b | 1.14x [0.95, 1.37] | 1.11x [1.01, 1.23] | 1.16x [1.01, 1.35] |
+
+| task | ctx | v4b | v5 |
+|---|---|---|---|
+| mq-console (held out) | 612 s | 169 s | 133 s |
+| kv-console | 1/2, 645 s | 228 s | 229 s |
+| ops-console | 471 s | 308 s (115, 499) | 263 s (143, 381) |
+| db-setup-wizard | 525 s | 102 s | 111 s |
+| interactive-wizard | 51 s | 35 s | 42 s |
+| tab-dev-server | 215 s | 141 s | 159 s |
+| pick-up-task | 68 s | 44 s | 43 s |
+| dev-server | 26 s | 33 s | 113 s (57, 168) |
+| fix-failing-test | 47 s | 44 s | 45 s |
+
+- (a) held: no command stalled on `!` (5 runs typed one, all ran), and fix-failing-test is ~45 s in every setup (round 7 v4b: 497 s). No run probed `/proc/<pid>/mem`.
+- (b) partly: v5 removed the bare `ctx read` polls after starting a console (v4b kv-console 1-2 per run, v5 0) and `ctx help` on mq-console (v4b 1 per run, v5 0), but not on kv-console (1-2 in both). Faster on mq-console and ops-console, not on kv-console. Overall v5 isn't better than v4b: 1.14x time with a CI over 1, and +11% tokens.
+- (c) held: on the held-out mq-console both skill versions load interactive-programs 4/4 and are 3.6-4.6x faster than ctx alone (612 s; it reconnected for each command, 13-16 agy background tasks per run). v5 used `wait until ... is quiet` and the right prompt after reading the screen; the `(mq) ` prompt didn't trip it.
+- (d) didn't hold for v5: using-ctx loaded on dev-server 2/2 (v4b 0/2), though v5 didn't change using-ctx. The 168 s run is the model investigating its environment: `ps aux`, then the harness's files beside the run folder (driver.zsh, ctx-calls.log, the hook config), then the skill files and `ctx help` 4 times. The load followed the investigation, so at n=2 this is noise from agent suspicion, not the skill text.
+- Larger gap to ctx than round 7 (0.54x vs 0.81x) because this task set is mostly the tasks where skills matter, not because the skills improved.
+- Not adopted: v5's console changes help where a prompt is unknown (mq-console) but cost a little elsewhere. Next is cutting the environment snooping that adds noise to every setup: `ps aux` in the sandbox shows the harness (`bench run experiments/...` in tmux, the driver's path), which invites investigation.
