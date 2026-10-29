@@ -1,0 +1,37 @@
+name = "ctx-skills-12"
+hypothesis = """
+Round 12 (rounds 1-11 in bench/experiments/ctx-skills.md), Linux, agy 1.4.9 (pinned copy), ctx 174dc7b (adds: `wait until … shows` searches a full-screen program's screen). Same tasks and setups as round 11; jobs-dashboard rewritten so the scheduler draws the screen and ./jobs only relays a terminal (in round 11 agents bypassed the dashboard through its JSON protocol).
+(a) jobs-dashboard (held out): both skill versions load interactive-programs, drive the dashboard with `ctx press` and `ctx read`, and beat ctx alone; no run bypasses the dashboard.
+(b) v6 vs v4b <= 1.0x wall time a third time (rounds 9-11: 0.90x, 0.94x, 0.88x).
+(c) No `wait until … shows` times out while its text is on a full-screen program's screen.
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 12
+tasks = ["kv-console", "ops-console", "mq-console", "db-setup-wizard", "interactive-wizard",
+         "tab-dev-server", "pick-up-task", "dev-server", "jobs-dashboard"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v6]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v6"]
+
+[ctx]
+bin = "ctx/target-next/release"
+repo = "ctx"
