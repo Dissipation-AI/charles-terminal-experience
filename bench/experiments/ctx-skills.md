@@ -288,3 +288,28 @@ Confirmation of v6 against v4b on round 4's 14 tasks plus mq-console, 2 reps, no
 - (c) held: no run read the harness's files (0/60, from 9/54 in round 8 and 5/54 in round 9).
 - using-ctx on dev-server: v6 1/2 (92 s). Rounds 5-10 combined, for every variant: about 1 in 4.
 - **ctx: an incomplete command hangs the tab.** The 355 s run typed `ctx read last 30 lines in "MQAdmin` (no closing quote) through the hook. In an interactive shell that leaves bash (`>`) or zsh (`dquote>`) at its continuation prompt: the command never starts, the hook's call waits until its limit (agy put it in the background and polled it for minutes), and the next command typed there lands inside the open quote. agy's own `bash -c` fails at once. Rounds 7-10 had 2 such runs (counted from ctx's activity log, which keeps the full command; agy's transcript truncates long ones). Fixed on ctx `linux-build` (ac3c0b9, local): `ctx run` first checks the command with the tab's shell (`-n`) and, if it is incomplete, runs nothing and says so with the shell's message. bash: unclosed quotes, unfinished `if`/`for`/braces and here-documents; zsh: unclosed quotes only (zsh doesn't tell an unfinished `if` from other parse errors).
+
+## Round 11, 2026-10-29, slopslinger, agy 1.4.9 (pinned copy), gemini-3.8-flash-high (spec `ctx-skills-11.toml`, experiment 2026-10-29-ctx-skills-11-a917)
+
+ctx ac3c0b9. Round 9's tasks with fix-failing-test replaced by the held-out `jobs-dashboard` (a curses dashboard). 54 runs; 3 agy 400s retried. Fails: ctx alone on jobs-dashboard and kv-console (timeouts), v6 on jobs-dashboard (timeout).
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4b vs ctx | 0.55x [0.48, 0.63] | 0.82x [0.73, 1.00] | 0.60x [0.51, 0.89] |
+| v6 vs ctx | 0.48x [0.41, 0.55] | 0.74x [0.66, 0.91] | 0.49x [0.40, 0.73] |
+| v6 vs v4b | 0.88x [0.74, 1.00] | 0.90x [0.83, 0.97] | 0.81x [0.70, 0.91] |
+
+| task | ctx | v4b | v6 |
+|---|---|---|---|
+| jobs-dashboard (held out) | 1/2, 714 s | 2/2, 275 s | 1/2, 567 s |
+| mq-console | 718 s | 254 s | 119 s |
+| kv-console | 1/2, 901 s | 249 s | 200 s |
+| ops-console | 781 s | 167 s | 147 s |
+| db-setup-wizard | 241 s | 143 s | 116 s |
+| dev-server | 30 s | 57 s | 39 s |
+| tab-dev-server, pick-up-task, interactive-wizard | | equal | |
+
+- (b) held: v6 vs v4b 0.88x time [0.74, 1.00], 0.90x tokens [0.83, 0.97], 0.81x output+thinking; faster on every console and wizard. Rounds 9-11 together: v6 is the better variant (0.90x, 0.94x, 0.88x).
+- (c) held: no run typed an incomplete command (checked against ctx's activity log).
+- (a) jobs-dashboard didn't measure what it was meant to. `./jobs` was readable Python that spoke a JSON protocol to the scheduler, so agents read it and restarted the job over the socket instead of using the dashboard: 3 of the 4 passing runs used the dashboard (v4b 6 and 13 `ctx press`, v6 5), ctx alone used the socket. Rewritten for the next round: the scheduler draws the screen itself (alternate screen, every field at its own cursor position) and `./jobs` only relays a raw terminal, like the consoles' clients. Oracle now drives it on a pty and passes.
+- **ctx: `wait until … shows` missed text on a full-screen program's screen.** The failing v6 jobs-dashboard run waited for `"tab: queue"`, which was on the screen, timed out after a minute, and the model then spent the rest of the run looking at processes. curses draws with cursor moves, so the text never came through as a line of output, and `shows` only looked at output lines. Fixed on ctx `linux-build` (174dc7b, local): while a full-screen program is in front, `shows` also searches its screen. Tested on the dashboard: `"tab: queue"`, `"[nightly]"`, `"page 1/3"` and, after `press tab`, `"[hourly]"` all match; absent text still times out.
