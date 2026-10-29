@@ -1,0 +1,37 @@
+name = "ctx-skills-10"
+hypothesis = """
+Round 10 (rounds 1-9 in bench/experiments/ctx-skills.md), Linux, agy 1.4.9 (pinned), ctx 3d02c0e. The harness's files now appear at /var/tmp/.r inside the sandbox, not beside the run folder.
+Confirmation of round 9's v6 (v4b + the paragraph on starting a program whose prompt isn't known), now ported to ctx/integrations/ctx-skills (ctx-skills 219c16d, local):
+(a) Across round 4's 14 tasks plus mq-console, v6 is no slower than v4b (round 9 on 9 tasks: 0.90x [0.85, 0.96]); on the console tasks it is faster.
+(b) On the tasks where no terminal is needed (fix-failing-test, multi-step-refactor, debug-from-logs, postmortem-debug, slow-load-inspect, sqlite-investigation, warehouse-explore), skill loads and times are the same for v4b and v6: the extra paragraph adds no loads.
+(c) No run reads the harness's files (round 9: 5/54, found through `ls /tmp/ab`).
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 10
+tasks = ["ops-console", "warehouse-explore", "tab-dev-server", "dev-server", "interactive-wizard",
+         "fix-failing-test", "multi-step-refactor", "debug-from-logs",
+         "db-setup-wizard", "kv-console", "mq-console",
+         "slow-load-inspect", "postmortem-debug", "sqlite-investigation", "pick-up-task"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v6]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v6"]
+
+[ctx]
+bin = "ctx/target-next/release"
+repo = "ctx"
