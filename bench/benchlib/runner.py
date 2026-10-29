@@ -143,7 +143,7 @@ exit $st
 CTX_MISUSE = re.compile(r"isn't a ctx verb|Did you mean|Put it in quotes|isn't a valid ctx|There's no tab named")
 
 
-CTX_BINS = Path.home() / ".cache/ctx-bench"
+CTX_BINS = Path.home() / ".cache/ctx-builds"  # agents resolve bin/ctx to here, so a plain name
 
 
 def install_ctx(rd: RunDir, ctx_bin: Path):
@@ -292,11 +292,19 @@ class Runner:
             installs = agent.install_commands(rd, {**setup, "plugins": plugin_copies})
             argv = agent.command(prompt, model, timeout, {**setup, "plugins": plugin_copies}, task)
             driver = write_driver(rd, real_ctx, installs, task["dir"] / "setup.sh", argv, timeout)
-            with open(art / "driver.log", "w") as dlog:
-                proc = rd.popen(["/bin/zsh", str(driver)], env=env, cwd=rd.work, stdout=dlog,
+            with open(art / "driver.log", "w") as dlog, open(driver) as script:
+                # The script on stdin, so `ps` in the sandbox shows `zsh -s`, not the harness's path.
+                proc = rd.popen(["/bin/zsh", "-s"], env=env, cwd=rd.work, stdin=script, stdout=dlog,
                                 stderr=subprocess.STDOUT, start_new_session=True)
                 try:
-                    proc.wait(timeout=timeout + 600)
+                    # The driver stays up after the agent ends (until released below), so the
+                    # agent's servers are still there for check.sh.
+                    steps_file, deadline = rd.private / "run/steps", time.monotonic() + timeout + 600
+                    while proc.poll() is None and not (
+                            steps_file.exists() and "agent_end " in steps_file.read_text()):
+                        if time.monotonic() > deadline:
+                            raise subprocess.TimeoutExpired(proc.args, timeout + 600)
+                        time.sleep(0.5)
                     timed_out = False
                 except subprocess.TimeoutExpired:
                     os.killpg(proc.pid, signal.SIGKILL)
@@ -365,10 +373,19 @@ class Runner:
         except Exception as e:
             status, error = "harness_error", f"{e}\n{traceback.format_exc()[-2000:]}"
         finally:
+            if proc is not None and proc.poll() is None:
+                (rd.private / "run/release").touch()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait()
             outcomes["leftover_processes"] = rd.kill_leftovers()
             # The ctx binary lives outside the run folder, so its server isn't found by path.
+            # (On Linux its pid is from the run's pid namespace, meaningless here; the namespace
+            # ended with the driver and took the server with it.)
             pid_file = rd.private / "run/ctx-server.pid"
-            if pid_file.exists():
+            if pid_file.exists() and not LINUX:
                 try:
                     os.kill(int(pid_file.read_text()), signal.SIGKILL)
                 except (ProcessLookupError, ValueError):
@@ -408,6 +425,8 @@ wait $apid
 print $? > $run/agent.rc
 step agent_end
 kill $wpid 2>/dev/null
+# Stay up until the harness has run check.sh: in a pid namespace, everything ends with the driver.
+for i in {{1..3000}}; do [[ -e $run/release ]] && break; sleep 0.2; done
 """
 
 CTX_START = """{ctx} server > $run/ctx-server.log 2>&1 &

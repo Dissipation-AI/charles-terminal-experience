@@ -18,8 +18,14 @@ def walk(x):
 t = next(walk(tabs), None)
 shell = t and (t.get("pid") or t.get("shell_pid"))
 p, ok = int(os.environ["PID"]), 0
+def ids(p):  # the pid here and, in a pid namespace (Linux sandbox), the pid ctx sees
+    try:
+        ns = [l.split()[1:] for l in open(f"/proc/{p}/status") if l.startswith("NSpid:")]
+        return {p, *(int(x) for x in ns[0])} if ns else {p}
+    except OSError:
+        return {p}
 for _ in range(6):
-    if shell and p == int(shell): ok = 1; break
+    if shell and int(shell) in ids(p): ok = 1; break
     out = subprocess.run(["ps", "-o", "ppid=", "-p", str(p)], capture_output=True, text=True).stdout.strip()
     if not out: break
     p = int(out)

@@ -125,9 +125,11 @@ class RunDir:
 
     def _write_bwrap(self) -> Path:
         """bubblewrap arguments: the system read-only, and empty /home and /tmp with only the run
-        folder, the harness's files beside it and the readable paths put back. No pid namespace:
-        the task's daemons and the ctx server outlive the driver, for check.sh."""
-        args = ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev"]
+        folder, the harness's files beside it and the readable paths put back. Its own pid
+        namespace: `ps` shows the run's processes, not the harness or the rest of the machine (which
+        made agents go looking into the harness). Everything in it ends when the driver exits, so
+        the driver waits for the harness to release it after check.sh."""
+        args = ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "--unshare-pid", "--proc", "/proc"]
         for p in ("/home", "/tmp", "/var/tmp", "/dev/shm", "/run/user", "/mnt", "/media"):
             if os.path.isdir(p):
                 args += ["--tmpfs", p]
@@ -143,6 +145,17 @@ class RunDir:
         return ["sandbox-exec", "-f", str(self.profile_path), *argv]
 
     def popen(self, argv, env=None, cwd=None, **kw) -> subprocess.Popen:
+        if LINUX:
+            # Arguments through a file descriptor, so bwrap's command line (pid 1 in the sandbox,
+            # visible to `ps`) doesn't list the harness's paths.
+            r, w = os.pipe()
+            os.write(w, b"".join(a.encode() + b"\0" for a in json.loads(self.profile_path.read_text())))
+            os.close(w)
+            try:
+                return subprocess.Popen(["bwrap", "--args", str(r), "--", *argv], env=env or self.env(),
+                                        cwd=cwd or self.work, pass_fds=(r,), **kw)
+            finally:
+                os.close(r)
         return subprocess.Popen(self.cmd(argv), env=env or self.env(), cwd=cwd or self.work, **kw)
 
     def run(self, argv, env=None, cwd=None, timeout=120, **kw) -> subprocess.CompletedProcess:

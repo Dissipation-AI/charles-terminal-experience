@@ -1,0 +1,38 @@
+name = "ctx-skills-9"
+hypothesis = """
+Round 9 (rounds 1-8 in bench/experiments/ctx-skills.md), Linux, agy 1.4.9 (pinned; 1.4.8 not reinstallable), ctx 3d02c0e.
+Harness change: each run has its own pid namespace, and bwrap's and the driver's command lines no longer name the harness, so `ps` in a run shows only the run's processes. In round 8 `ps aux` showed the harness (tmux's `bench run experiments/...`, the driver's path) and agents went on to read its files (dev-server v5: 168 s).
+(a) Fewer runs look into the harness (the `.run` folder, driver, ctx-calls.log) than in round 8, in every setup.
+(b) v6 = v4b + only v5's paragraph on starting a program whose prompt isn't known yet. It keeps v5's gain on mq-console (v5 133 s vs v4b 169 s) and the lack of read polls on kv-console, without v5's cost elsewhere: v6 vs v4b <= 1.0x wall time overall.
+(c) using-ctx loads on dev-server at most 1 of 2 per skills setup (round 8 v5: 2/2, after investigating the harness).
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 9
+tasks = ["kv-console", "ops-console", "mq-console", "db-setup-wizard", "interactive-wizard",
+         "tab-dev-server", "pick-up-task", "dev-server", "fix-failing-test"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills-v4b]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v4b"]
+
+[setups.skills-v6]
+ctx = true
+plugins = ["bench/variants/ctx-skills-v6"]
+
+[ctx]
+bin = "ctx/target-next/release"
+repo = "ctx"
