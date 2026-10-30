@@ -313,3 +313,18 @@ ctx ac3c0b9. Round 9's tasks with fix-failing-test replaced by the held-out `job
 - (c) held: no run typed an incomplete command (checked against ctx's activity log).
 - (a) jobs-dashboard didn't measure what it was meant to. `./jobs` was readable Python that spoke a JSON protocol to the scheduler, so agents read it and restarted the job over the socket instead of using the dashboard: 3 of the 4 passing runs used the dashboard (v4b 6 and 13 `ctx press`, v6 5), ctx alone used the socket. Rewritten for the next round: the scheduler draws the screen itself (alternate screen, every field at its own cursor position) and `./jobs` only relays a raw terminal, like the consoles' clients. Oracle now drives it on a pty and passes.
 - **ctx: `wait until … shows` missed text on a full-screen program's screen.** The failing v6 jobs-dashboard run waited for `"tab: queue"`, which was on the screen, timed out after a minute, and the model then spent the rest of the run looking at processes. curses draws with cursor moves, so the text never came through as a line of output, and `shows` only looked at output lines. Fixed on ctx `linux-build` (174dc7b, local): while a full-screen program is in front, `shows` also searches its screen. Tested on the dashboard: `"tab: queue"`, `"[nightly]"`, `"page 1/3"` and, after `press tab`, `"[hourly]"` all match; absent text still times out.
+
+## Round 12, 2026-10-30, slopslinger, agy 1.4.9 (pinned copy) (spec `ctx-skills-12.toml`), and stop
+
+Round 11 repeated with ctx 174dc7b and the redrawn jobs-dashboard. 54 runs, 3 infra errors retried.
+
+| comparison | wall time | total tokens | output+thinking |
+|---|---|---|---|
+| v4b vs ctx | 0.46x [0.42, 0.52] | 0.76x [0.68, 0.89] | 0.47x [0.41, 0.63] |
+| v6 vs ctx | 0.58x [0.48, 0.67] | 0.86x [0.74, 1.02] | 0.52x [0.43, 0.71] |
+| v6 vs v4b | 1.27x [1.06, 1.42] | 1.14x [0.99, 1.26] | 1.11x [0.97, 1.22] |
+
+- v6's lead over v4b reversed (rounds 9-12: 0.90x, 0.94x, 0.88x, 1.27x). Differences between tuned variants are at the level of run-to-run noise at 2 reps, and every task, held-out ones included, was written by the same sessions that wrote the skills.
+- What held in every round on both machines: skills vs ctx alone, about 0.5-0.8x time and 0.5-0.7x output tokens, mostly from consoles and wizards, held-out tasks included.
+
+Stopped here (user, 2026-10-30): more tuning against these tasks risks fitting the skills to them. Keep v4b (ctx `ctx-skills`, pushed); 219c16d (the v6 port) stays unpushed. The ctx fixes on `linux-build` (3d02c0e history expansion, ac3c0b9 incomplete commands, 174dc7b `shows` on full-screen screens) are general ctx bugs, independent of the skills; pushing them needs the user's OK. Further evidence should come from real use, not more bench tasks.
