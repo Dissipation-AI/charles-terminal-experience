@@ -1,12 +1,16 @@
 [submodule "bro"]
 	path = bro
 	url = https://github.com/Dissipation-AI/bro.git
+	branch = main
 [submodule "shared/redact"]
 	path = shared/redact
 	url = https://github.com/Dissipation-AI/redact.git
+	branch = main
 [submodule "ctx"]
 	path = ctx
 	url = https://github.com/Dissipation-AI/ctx.git
+	branch = main
 [submodule "ctx-app"]
 	path = ctx-app
 	url = https://github.com/Dissipation-AI/ctx-app.git
+	branch = main
