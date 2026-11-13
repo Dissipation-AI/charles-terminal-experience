@@ -1,0 +1,34 @@
+name = "ctx-skills-13"
+hypothesis = """
+Round 13 (rounds 1-12 in bench/experiments/ctx-skills.md): a regression check of ctx after agents became OS accounts (ctx PR #27, main 9a84343: config-file agents, Seatbelt and shims removed). macOS, agy 1.4.12 (pinned copy). Same tasks as round 12; setups plain, ctx, and the shipping skills (integrations/ctx-skills, which is v4b).
+(a) Nothing slipped: skills vs ctx stays within the range of rounds 9-12 (about 0.5-0.8x wall time), and ctx vs plain stays where earlier rounds put it.
+(b) Every ctx run is valid (the hook ran its commands in ctx tabs) and no task that passed in round 12 fails in every rep.
+"""
+reps = 2
+jobs = 4
+timeout = 900
+seed = 13
+tasks = ["kv-console", "ops-console", "mq-console", "db-setup-wizard", "interactive-wizard",
+         "tab-dev-server", "pick-up-task", "dev-server", "jobs-dashboard"]
+
+[agents.agy]
+models = ["gemini-3.8-flash-high"]
+
+[agents.claude]
+models = ["sonnet"]
+
+[agents.oracle]
+models = ["solve.sh"]
+
+[setups.plain]
+
+[setups.ctx]
+ctx = true
+
+[setups.skills]
+ctx = true
+plugins = ["ctx/integrations/ctx-skills"]
+
+[ctx]
+bin = "ctx/target/release"
+repo = "ctx"

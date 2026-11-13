@@ -328,3 +328,21 @@ Round 11 repeated with ctx 174dc7b and the redrawn jobs-dashboard. 54 runs, 3 in
 - What held in every round on both machines: skills vs ctx alone, about 0.5-0.8x time and 0.5-0.7x output tokens, mostly from consoles and wizards, held-out tasks included.
 
 Stopped here (user, 2026-10-30): more tuning against these tasks risks fitting the skills to them. Keep v4b (ctx `ctx-skills`, pushed); 219c16d (the v6 port) stays unpushed. The ctx fixes on `linux-build` (3d02c0e history expansion, ac3c0b9 incomplete commands, 174dc7b `shows` on full-screen screens) are general ctx bugs, independent of the skills; pushing them needs the user's OK. Further evidence should come from real use, not more bench tasks.
+
+## Round 13, 2026-11-13, laptop (macOS), agy 1.4.12 (pinned copy) (spec `ctx-skills-13.toml`, experiment 2026-11-12-ctx-skills-13-3a5e)
+
+Regression check after agents became OS accounts (ctx PR #27: config-file agents, Seatbelt and shims removed). Same 9 tasks as round 12; setups plain, ctx, and the shipping skills (v4b). 52 runs, none invalid.
+
+| setup | runs | pass rate | median wall s | median tokens | median output+thinking |
+|---|---|---|---|---|---|
+| plain | 16 | 81% | 382 | 217,284 | 20,452 |
+| ctx | 18 | 100% | 418 | 293,995 | 39,611 |
+| skills | 18 | 100% | 114 | 192,456 | 7,559 |
+
+| setup | wall time | total tokens | output+thinking tokens | pass rate change |
+|---|---|---|---|---|
+| ctx vs plain | 1.03x [0.88, 1.37] | 1.09x [0.93, 1.49] | 1.12x [0.89, 1.91] | +19 pts |
+| skills vs plain | 0.41x [0.35, 0.53] | 0.77x [0.66, 1.05] | 0.38x [0.31, 0.63] | +19 pts |
+| skills vs ctx | 0.43x [0.39, 0.47] | 0.71x [0.66, 0.78] | 0.38x [0.34, 0.42] | +0 pts |
+
+- No slip: skills vs ctx is at the good end of rounds 9-12 (0.46-0.61x time, 0.47-0.60x output). Plain failed dev-server twice and kv-console once (900 s timeout); ctx and skills passed everything.
